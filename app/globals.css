@@ -49,6 +49,12 @@
 }
 
 :root {
+  --color-pos: #16a34a;      /* green-600 */
+  --color-pos-muted: #dcfce7; /* green-100 */
+  --color-neg: #dc2626;      /* red-600 */
+  --color-neg-muted: #fee2e2; /* red-100 */
+  --color-neutral: #6b7280;  /* gray-500 */
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -84,6 +90,12 @@
 }
 
 .dark {
+  --color-pos: #4ade80;      /* green-400 — brighter for dark bg */
+  --color-pos-muted: #14532d; /* green-900 */
+  --color-neg: #f87171;      /* red-400 */
+  --color-neg-muted: #7f1d1d; /* red-900 */
+  --color-neutral: #9ca3af;  /* gray-400 */
+
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
