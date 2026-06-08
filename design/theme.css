@@ -1,0 +1,172 @@
+/* ============================================================
+   Options Trade Tracker — design system
+   IBM Plex Sans, tabular figures, light default + dark toggle.
+   All tokens are scoped under .dash so the design-canvas chrome
+   is never affected. html.dark flips the palette.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;450;500;600;700&display=swap');
+
+.dash {
+  /* surfaces */
+  --bg-page:    #f6f7f9;
+  --surface:    #ffffff;
+  --surface-2:  #f1f3f6;
+  --inset:      #eceff3;
+  --border:     #e3e6eb;
+  --border-2:   #d2d7df;
+  --hover:      #f4f6f9;
+
+  /* ink */
+  --text-1:     #1a1d23;
+  --text-2:     #5a6371;
+  --text-3:     #8b939e;
+  --text-faint: #aab0ba;
+
+  /* P&L — reserved exclusively for gains/losses */
+  --pos:        #08966a;
+  --pos-soft:   #2dd4a7;
+  --pos-wash:   rgba(45,212,167,0.12);
+  --neg:        #d62f4d;
+  --neg-soft:   #fb7185;
+  --neg-wash:   rgba(251,113,133,0.12);
+
+  /* accent / neutral selection */
+  --accent:     #5b5bd6;
+  --accent-soft:#818cf8;
+  --accent-wash:rgba(129,140,248,0.12);
+  --warn:       #b9810b;
+  --warn-soft:  #f2b237;
+
+  /* categorical (strategy donut etc.) */
+  --cat-1: #5b5bd6;
+  --cat-2: #2dd4a7;
+  --cat-3: #f2b237;
+  --cat-4: #fb7185;
+  --cat-5: #38bdf8;
+
+  /* chart scaffolding */
+  --grid:       #eceef2;
+  --axis:       #c9cfd8;
+
+  --shadow-sm: 0 1px 2px rgba(16,22,33,0.04), 0 1px 3px rgba(16,22,33,0.06);
+  --shadow-md: 0 1px 2px rgba(16,22,33,0.04), 0 6px 20px rgba(16,22,33,0.06);
+
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  color: var(--text-1);
+  box-sizing: border-box;
+}
+
+html.dark .dash {
+  --bg-page:    #0e1116;
+  --surface:    #161a21;
+  --surface-2:  #1b2028;
+  --inset:      #11141a;
+  --border:     #252b34;
+  --border-2:   #323a45;
+  --hover:      #1d232c;
+
+  --text-1:     #e8ebef;
+  --text-2:     #99a2ad;
+  --text-3:     #6c7682;
+  --text-faint: #4d5662;
+
+  --pos:        #2dd4a7;
+  --pos-soft:   #2dd4a7;
+  --pos-wash:   rgba(45,212,167,0.13);
+  --neg:        #fb7185;
+  --neg-soft:   #fb7185;
+  --neg-wash:   rgba(251,113,133,0.13);
+
+  --accent:     #818cf8;
+  --accent-soft:#a5adfb;
+  --accent-wash:rgba(129,140,248,0.16);
+  --warn:       #f2b237;
+  --warn-soft:  #f2b237;
+
+  --cat-1: #818cf8;
+  --cat-2: #2dd4a7;
+  --cat-3: #f2b237;
+  --cat-4: #fb7185;
+  --cat-5: #38bdf8;
+
+  --grid:       #20262f;
+  --axis:       #38414c;
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md: 0 1px 2px rgba(0,0,0,0.3), 0 8px 28px rgba(0,0,0,0.45);
+}
+
+.dash *, .dash *::before, .dash *::after { box-sizing: border-box; }
+.dash { width: 100%; height: 100%; background: var(--bg-page); overflow: hidden; }
+
+/* shared atoms ------------------------------------------------ */
+.dash .mono-num { font-variant-numeric: tabular-nums; }
+.dash .pos { color: var(--pos); }
+.dash .neg { color: var(--neg); }
+
+.dash .panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-sm);
+}
+
+.dash .panel-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 0;
+}
+.dash .panel-title {
+  font-size: 13px; font-weight: 600; letter-spacing: -0.1px; color: var(--text-1); white-space: nowrap;
+}
+.dash .panel-sub { font-size: 11px; color: var(--text-3); font-weight: 450; white-space: nowrap; }
+
+.dash .chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 500; line-height: 1;
+  padding: 4px 8px; border-radius: 6px;
+  border: 1px solid var(--border-2); color: var(--text-2);
+  background: var(--surface);
+}
+
+/* status pills */
+.dash .pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 500; line-height: 1;
+  padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+}
+.dash .pill::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .9; }
+.dash .pill-open     { color: var(--accent);  background: var(--accent-wash); }
+.dash .pill-closed   { color: var(--text-2);  background: var(--inset); }
+.dash .pill-expired  { color: var(--warn);    background: rgba(242,178,55,0.13); }
+.dash .pill-assigned { color: var(--pos);     background: var(--pos-wash); }
+
+.dash .seg {
+  display: inline-flex; padding: 2px; gap: 2px;
+  background: var(--inset); border-radius: 8px; border: 1px solid var(--border);
+}
+.dash .seg button {
+  font: inherit; font-size: 12px; font-weight: 500; color: var(--text-2);
+  border: 0; background: transparent; padding: 5px 11px; border-radius: 6px; cursor: pointer;
+}
+.dash .seg button.on { background: var(--surface); color: var(--text-1); box-shadow: var(--shadow-sm); }
+
+/* generic scrollbar hidden inside cards (canvas already does this) */
+.dash ::-webkit-scrollbar { width: 0; height: 0; }
+
+/* floating theme toggle (lives outside the canvas world) */
+#theme-toggle {
+  position: fixed; right: 18px; bottom: 18px; z-index: 200;
+  display: inline-flex; align-items: center; gap: 9px;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-size: 13px; font-weight: 500; color: #2a251f;
+  background: #fff; border: 1px solid rgba(0,0,0,0.1);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.14); border-radius: 999px;
+  padding: 9px 15px 9px 12px; cursor: pointer; transition: transform .12s, box-shadow .12s;
+}
+#theme-toggle:hover { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(0,0,0,0.18); }
+html.dark #theme-toggle { background: #1b2028; color: #e8ebef; border-color: #323a45; box-shadow: 0 4px 18px rgba(0,0,0,0.5); }
+#theme-toggle svg { display: block; }
