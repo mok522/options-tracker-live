@@ -1,5 +1,6 @@
 import Papa from 'papaparse';
 import type { RawTrade } from '@/types';
+import { buildDedupKey } from './deduplicator';
 
 export interface ParseResult {
   trades: RawTrade[];
@@ -127,16 +128,6 @@ function normalizeOptionType(
   return 'CALL'; // fallback — caller can warn separately
 }
 
-function buildDedupKey(
-  execTime: string,
-  symbol: string,
-  side: string,
-  qty: number,
-  price: number
-): string {
-  return `${execTime}|${symbol}|${side}|${qty}|${price}`;
-}
-
 // ---------------------------------------------------------------------------
 // Main parser
 // ---------------------------------------------------------------------------
@@ -152,6 +143,10 @@ export function parseTOS(csvText: string): ParseResult {
   });
 
   const rows: string[][] = result.data as string[][];
+
+  for (const err of result.errors) {
+    warnings.push(`CSV parse error at row ${err.row ?? '?'}: ${err.message}`);
+  }
 
   // ------------------------------------------------------------------
   // 1. Locate the "Account Trade History" section
@@ -289,7 +284,7 @@ export function parseTOS(csvText: string): ParseResult {
       price,
       netPrice: isNaN(netPrice) ? price : netPrice,
       commission,
-      dedupKey: buildDedupKey(rec.execTime, symbol, side, qty, price),
+      dedupKey: buildDedupKey({ execTime: rec.execTime, symbol, side, qty, price }),
     };
 
     trades.push(trade);
