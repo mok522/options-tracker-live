@@ -15,12 +15,17 @@ const SECTION_1256_UNDERLYINGS = new Set([
 // ---------------------------------------------------------------------------
 
 /**
- * Parse TOS execTime string "MM/DD/YY HH:mm" → Date
+ * Parse TOS execTime string "MM/DD/YY HH:mm" → Date.
+ * Returns NaN-date on malformed input instead of throwing.
  */
 function parseExecTime(s: string): Date {
-  const [datePart, timePart] = s.split(' ');
-  const [mm, dd, yy] = datePart.split('/');
-  const [hh, min] = (timePart ?? '00:00').split(':');
+  if (!s || s.trim() === '') return new Date(NaN);
+  const parts = s.split(' ');
+  if (parts.length < 2) return new Date(NaN);
+  const dateParts = parts[0].split('/');
+  if (dateParts.length !== 3) return new Date(NaN);
+  const [mm, dd, yy] = dateParts;
+  const [hh, min] = (parts[1] ?? '00:00').split(':');
   return new Date(
     2000 + parseInt(yy, 10),
     parseInt(mm, 10) - 1,
@@ -185,14 +190,16 @@ function buildStrikes(legs: RawTrade[], strategy: StrategyType): string {
 // Stable ID
 // ---------------------------------------------------------------------------
 
-/** Simple deterministic hash-based ID to avoid crypto dependency issues in tests. */
-function makeId(signature: string, openDate: Date): string {
-  const raw = `${signature}|${openDate.toISOString()}`;
-  // djb2 hash → base36
+/**
+ * Stable ID derived from the position signature and opening leg dedupKeys.
+ * Uses trade data rather than parsed dates, so re-imports produce the same ID.
+ */
+function makeId(signature: string, openDedupKeys: string[]): string {
+  const raw = `${signature}|${[...openDedupKeys].sort().join('|')}`;
   let h = 5381;
   for (let i = 0; i < raw.length; i++) {
     h = ((h << 5) + h) ^ raw.charCodeAt(i);
-    h = h >>> 0; // keep 32-bit unsigned
+    h = h >>> 0;
   }
   return h.toString(36);
 }
@@ -258,7 +265,7 @@ export function buildPositions(trades: RawTrade[]): Position[] {
         parseExpiration(legs.find((l) => l.expiration)?.expiration ?? '') ?? null;
       const qty = Math.max(...legs.map((l) => l.qty));
       const commissions = legs.reduce((s, l) => s + Math.abs(l.commission), 0);
-      const id = makeId(signature, openDate);
+      const id = makeId(signature, legs.map((l) => l.dedupKey));
 
       const position: Position = {
         id,
@@ -288,19 +295,52 @@ export function buildPositions(trades: RawTrade[]): Position[] {
       const closeCommissions = legs.reduce((s, l) => s + Math.abs(l.commission), 0);
 
       if (existingPosition) {
-        // Close the open position
-        const realizedPnl = existingPosition.netCredit + closeNetCredit;
-        const closedPosition: Position = {
-          ...existingPosition,
-          status,
-          closeDate,
-          realizedPnl,
-          commissions: existingPosition.commissions + closeCommissions,
-          daysHeld: daysHeld(existingPosition.openDate, closeDate),
-        };
+        const closeQty = Math.max(...legs.map((l) => l.qty));
+        const openQty = existingPosition.qty;
+        const isPartialClose = closeQty < openQty;
 
-        openBook.delete(closeSig);
-        positions.push(closedPosition);
+        if (isPartialClose) {
+          // Prorate open credit and commissions by the closed fraction
+          const ratio = closeQty / openQty;
+          const proratedOpen = existingPosition.netCredit * ratio;
+          const realizedPnl = proratedOpen + closeNetCredit;
+
+          const closedPartial: Position = {
+            ...existingPosition,
+            id: makeId(closeSig + '|partial', legs.map((l) => l.dedupKey)),
+            qty: closeQty,
+            status,
+            closeDate,
+            realizedPnl,
+            netCredit: proratedOpen,
+            commissions: existingPosition.commissions * ratio + closeCommissions,
+            daysHeld: daysHeld(existingPosition.openDate, closeDate),
+          };
+
+          // Keep the remainder open with reduced qty + prorated values
+          const updatedOpen: Position = {
+            ...existingPosition,
+            qty: openQty - closeQty,
+            netCredit: existingPosition.netCredit * (1 - ratio),
+            commissions: existingPosition.commissions * (1 - ratio),
+          };
+
+          openBook.set(closeSig, updatedOpen);
+          positions.push(closedPartial);
+        } else {
+          // Full close
+          const realizedPnl = existingPosition.netCredit + closeNetCredit;
+          const closedPosition: Position = {
+            ...existingPosition,
+            status,
+            closeDate,
+            realizedPnl,
+            commissions: existingPosition.commissions + closeCommissions,
+            daysHeld: daysHeld(existingPosition.openDate, closeDate),
+          };
+          openBook.delete(closeSig);
+          positions.push(closedPosition);
+        }
       } else {
         // Orphan close: no matching open found
         const strategy = detectStrategy(legs, spread);
@@ -308,7 +348,7 @@ export function buildPositions(trades: RawTrade[]): Position[] {
         const expDate =
           parseExpiration(legs.find((l) => l.expiration)?.expiration ?? '') ?? null;
         const qty = Math.max(...legs.map((l) => l.qty));
-        const id = makeId(closeSig, closeDate);
+        const id = makeId(closeSig, legs.map((l) => l.dedupKey));
 
         const orphanPosition: Position = {
           id,
