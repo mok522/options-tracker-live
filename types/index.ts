@@ -75,7 +75,7 @@ export interface TaxSummary {
   section1256Gains: number;
   washSaleAdjustment: number;
   estimatedTax: number;
-  marginalBracket: number;    // e.g. 0.24
+  marginalBracketRate: number;  // e.g. 0.24
   events: TaxEvent[];
 }
 
