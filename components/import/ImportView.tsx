@@ -1,244 +1,202 @@
 'use client';
 
-import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { DropZone } from './DropZone';
-import { PreviewTable } from './PreviewTable';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { parseTOS } from '@/lib/parser/tosParser';
-import { importTrades } from '@/actions/importTrades';
-import type { RawTrade } from '@/types';
+import { useState, useRef } from 'react';
+import type { Trade } from '@/types/trade';
+import { Icon } from '@/components/shared/Icon';
+import { TradesTable } from '@/components/shared/TradesTable';
+import { parseTradeCSV, buildSampleCSV } from '@/lib/csvParser';
+import { sampleTrades } from '@/lib/sampleData';
+import type { ParseResult } from '@/lib/csvParser';
 
-// ---------------------------------------------------------------------------
-// Sample data for the "Load sample data" button
-// ---------------------------------------------------------------------------
-const SAMPLE_CSV = `Account Statement for Demo-12345,,,,,,,,,,,
-,,,,,,,,,,,
-Account Trade History
-,,,,,,,,,,,
-"Exec Time","Spread","Side","Qty","Pos Effect","Symbol","Exp","Strike","Type","Price","Net Price","Order Type"
-"01/15/25 09:30","SINGLE","SELL","1","TO OPEN","AAPL","01/17/25","230","CALL","3.50","3.49","LMT"
-"01/17/25 15:45","SINGLE","BUY","1","TO CLOSE","AAPL","01/17/25","230","CALL","1.20","1.21","MKT"
-"01/20/25 10:00","VERTICAL","SELL","2","TO OPEN","SPX","01/31/25","5900","PUT","8.50","8.49","LMT"
-"01/20/25 10:00","VERTICAL","BUY","2","TO OPEN","SPX","01/31/25","5850","PUT","5.00","5.01","LMT"
-"01/31/25 16:00","VERTICAL","BUY","2","TO CLOSE","SPX","01/31/25","5900","PUT","2.00","2.01","MKT"
-"01/31/25 16:00","VERTICAL","SELL","2","TO CLOSE","SPX","01/31/25","5850","PUT","0.50","0.49","MKT"
-"02/03/25 09:45","SINGLE","BUY","3","TO OPEN","NVDA","02/21/25","135","CALL","4.20","4.21","LMT"
-,,,,,,,,,,,
-`;
+interface ImportViewProps {
+  onImport: (trades: Trade[]) => Promise<void>;
+  lastImport?: string;
+}
 
-// ---------------------------------------------------------------------------
-// Column mapping summary items
-// ---------------------------------------------------------------------------
-const DETECTED_FIELDS = [
-  'Exec Time',
-  'Symbol',
-  'Side',
-  'Strategy',
-  'Price',
-  'Net Price',
-];
-
-type Stage = 'drop' | 'review';
-
-export function ImportView() {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-
-  const [stage, setStage] = useState<Stage>('drop');
-  const [trades, setTrades] = useState<RawTrade[]>([]);
-  const [warnings, setWarnings] = useState<string[]>([]);
+export function ImportView({ onImport, lastImport }: ImportViewProps) {
+  const [stage, setStage] = useState<'drop' | 'review'>('drop');
+  const [drag, setDrag] = useState(false);
   const [fileName, setFileName] = useState('');
-  const [importError, setImportError] = useState<string | null>(null);
-  const [importSuccess, setImportSuccess] = useState(false);
+  const [parsed, setParsed] = useState<ParseResult | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // --------------------------------------------------------------------------
-  // Handlers
-  // --------------------------------------------------------------------------
-
-  function handleFile(csvText: string, name: string) {
-    const result = parseTOS(csvText);
-    setTrades(result.trades);
-    setWarnings(result.warnings);
+  const ingest = (text: string, name: string) => {
+    const result = parseTradeCSV(text);
+    if (result.trades.length === 0) {
+      setParseError('No trades found. Make sure this is a ThinkOrSwim Account Statement CSV exported from Monitor → Activity & Positions → Account Statement.');
+      return;
+    }
+    setParseError(null);
     setFileName(name);
-    setImportError(null);
-    setImportSuccess(false);
+    setParsed(result);
     setStage('review');
-  }
+  };
 
-  function handleSampleData() {
-    handleFile(SAMPLE_CSV, 'sample-data.csv');
-  }
+  const onFile = (file: File | null) => {
+    if (!file) return;
+    const fr = new FileReader();
+    fr.onload = () => ingest(String(fr.result), file.name);
+    fr.readAsText(file);
+  };
 
-  function handleBack() {
-    setStage('drop');
-    setTrades([]);
-    setWarnings([]);
-    setFileName('');
-    setImportError(null);
-    setImportSuccess(false);
-  }
-
-  function handleImport() {
-    setImportError(null);
-    startTransition(async () => {
-      try {
-        await importTrades(trades, fileName);
-        setImportSuccess(true);
-        // Brief pause so the user sees the success message
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        router.push('/dashboard');
-      } catch (err) {
-        setImportError(
-          err instanceof Error ? err.message : 'Import failed. Please try again.'
-        );
-      }
-    });
-  }
-
-  // --------------------------------------------------------------------------
-  // Render
-  // --------------------------------------------------------------------------
+  const loadSample = () => ingest(buildSampleCSV(sampleTrades), 'ToS_AccountStatement_2026.csv');
 
   if (stage === 'drop') {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-12">
-        <h1 className="mb-2 text-3xl font-semibold tracking-tight text-foreground">
-          Import ThinkOrSwim Statement
-        </h1>
-        <p className="mb-8 text-base text-muted-foreground">
-          Drag and drop your TOS account statement CSV, or click to browse.
-        </p>
-
-        <DropZone onFile={handleFile} />
-
-        <div className="mt-6 flex items-center gap-3">
-          <div className="h-px flex-1 bg-border" />
-          <span className="text-xs text-muted-foreground">or</span>
-          <div className="h-px flex-1 bg-border" />
+      <div style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, overflow: 'auto' }}>
+        <div style={{ textAlign: 'center', maxWidth: 460 }}>
+          <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.4px' }}>Import your account statement</div>
+          <div style={{ fontSize: 13, color: 'var(--text-2)', marginTop: 6, lineHeight: 1.5 }}>Drop a ThinkOrSwim or Schwab CSV export. We auto-detect the columns — no manual entry, no mapping headaches.</div>
         </div>
-
-        <div className="mt-6 flex justify-center">
-          <Button variant="outline" size="sm" onClick={handleSampleData}>
-            Load sample data
-          </Button>
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+          onDragLeave={() => setDrag(false)}
+          onDrop={(e) => { e.preventDefault(); setDrag(false); onFile(e.dataTransfer.files[0]); }}
+          onClick={() => inputRef.current?.click()}
+          style={{
+            width: 'min(620px, 90%)', borderRadius: 14, cursor: 'pointer',
+            border: `2px dashed ${drag ? 'var(--accent)' : 'var(--border-2)'}`,
+            background: drag ? 'var(--accent-wash)' : 'var(--surface)', transition: 'all .15s',
+            padding: '48px 32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
+          }}
+        >
+          <div style={{ width: 54, height: 54, borderRadius: 14, background: 'var(--inset)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="upload" size={26} />
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 14.5, fontWeight: 600 }}>Drag &amp; drop your CSV here</div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 3 }}>or click to browse — .csv up to 10MB</div>
+          </div>
+          <input ref={inputRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={(e) => onFile(e.target.files?.[0] ?? null)} />
+        </div>
+        {parseError && (
+          <div style={{ maxWidth: 460, padding: '10px 14px', borderRadius: 9, background: 'var(--neg-wash)', border: '1px solid var(--neg-soft)', color: 'var(--neg)', fontSize: 12.5, lineHeight: 1.5 }}>
+            {parseError}
+          </div>
+        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={loadSample}
+            style={{ font: 'inherit', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, height: 38, padding: '0 16px', borderRadius: 9, background: 'var(--text-1)', color: 'var(--surface)', border: 0, fontSize: 13, fontWeight: 600 }}
+          >
+            <Icon name="spark" size={15} /> Load sample ThinkOrSwim statement
+          </button>
+          {lastImport && <span style={{ fontSize: 12, color: 'var(--text-3)' }}>Last import · {lastImport}</span>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
+          <Icon name="shield" size={13} /> Processed locally in your browser — your data never leaves this device.
         </div>
       </div>
     );
   }
 
-  // Review stage
+  // review stage
+  if (!parsed) return null;
+  const map = parsed.map;
+  const fieldNames = Object.keys(map);
+  const matched = fieldNames.filter((f) => map[f] !== -1).length;
+  const openCt = parsed.trades.filter((t) => t.status === 'Open').length;
+
+  const step = (n: number, label: string, on: boolean, done: boolean) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{
+        width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700,
+        background: done ? 'var(--pos)' : on ? 'var(--accent)' : 'var(--inset)',
+        color: done || on ? '#fff' : 'var(--text-3)',
+      }}>
+        {done ? '✓' : n}
+      </span>
+      <span style={{ fontSize: 12.5, fontWeight: on || done ? 600 : 500, color: on || done ? 'var(--text-1)' : 'var(--text-3)' }}>{label}</span>
+    </div>
+  );
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-12">
-      {/* Step indicator */}
-      <div className="mb-8 flex items-center gap-2 text-sm">
-        <span className="text-muted-foreground">Upload</span>
-        <span className="text-muted-foreground">→</span>
-        <span className="font-semibold text-foreground underline underline-offset-4">
-          Review
+    <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 13, overflow: 'auto' }}>
+      {/* stepper */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        {step(1, 'Upload', false, true)}
+        <div style={{ width: 28, height: 1, background: 'var(--border-2)' }} />
+        {step(2, 'Map columns', true, false)}
+        <div style={{ width: 28, height: 1, background: 'var(--border)' }} />
+        {step(3, 'Review & import', false, false)}
+        <div style={{ flex: 1 }} />
+        <span className="chip" style={{ gap: 6, color: 'var(--pos)', borderColor: 'var(--pos-soft)' }}>
+          <Icon name="spark" size={12} /> ThinkOrSwim Account Statement detected
         </span>
-        <span className="text-muted-foreground">→</span>
-        <span className="text-muted-foreground">Import</span>
       </div>
 
-      {/* Format detection badge */}
-      <div className="mb-6 flex items-center gap-3">
-        <h2 className="text-xl font-semibold text-foreground">
-          Review Import
-        </h2>
-        <Badge variant="secondary" className="text-emerald-700 dark:text-emerald-400">
-          ThinkOrSwim format detected ✓
-        </Badge>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.55fr', gap: 13, flex: 1, minHeight: 0 }}>
+        {/* column mapping */}
+        <div className="panel" style={{ borderRadius: 9, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '13px 14px 0' }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Column mapping</div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>{matched} of {fieldNames.length} fields matched · {fileName}</div>
+          </div>
+          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 7, overflowY: 'auto' }}>
+            {fieldNames.map((field) => {
+              const ok = map[field] !== -1;
+              return (
+                <div key={field} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8, background: 'var(--inset)' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-2)', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {ok ? parsed.headers[map[field]] : 'not found'}
+                  </span>
+                  <Icon name="chevRight" size={13} style={{ color: 'var(--text-faint)' }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, width: 78, textAlign: 'right' }}>{field}</span>
+                  <span style={{
+                    width: 18, height: 18, borderRadius: '50%', flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: ok ? 'var(--pos-wash)' : 'var(--inset)', color: ok ? 'var(--pos)' : 'var(--text-faint)',
+                  }}>
+                    {ok
+                      ? <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                      : <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    }
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* preview */}
+        <div className="panel" style={{ borderRadius: 9, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ padding: '13px 14px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>Preview</div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>First {Math.min(7, parsed.trades.length)} of {parsed.trades.length} rows</div>
+            </div>
+            <div style={{ display: 'flex', gap: 7 }}>
+              <span className="chip" style={{ fontSize: 11 }}>{parsed.trades.length} trades</span>
+              <span className="chip" style={{ fontSize: 11 }}>{openCt} open</span>
+            </div>
+          </div>
+          <div style={{ padding: '8px 6px', flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            <TradesTable rows={parsed.trades.slice(0, 7)} dense />
+          </div>
+        </div>
       </div>
 
-      {/* Two-column layout */}
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-[240px_1fr]">
-        {/* Left: Column mapping */}
-        <div className="rounded-lg border border-border bg-muted/20 p-4">
-          <h3 className="mb-3 text-sm font-medium text-foreground">
-            Detected columns
-          </h3>
-          <ul className="space-y-1.5">
-            {DETECTED_FIELDS.map((field) => (
-              <li key={field} className="flex items-center gap-2 text-sm">
-                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
-                  <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </span>
-                <span className="text-foreground">{field}</span>
-              </li>
-            ))}
-          </ul>
+      {/* actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: '0 0 auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, color: 'var(--text-3)' }}>
+          <Icon name="shield" size={13} /> Processed locally — nothing uploaded.
         </div>
-
-        {/* Right: Preview table */}
-        <div>
-          <h3 className="mb-3 text-sm font-medium text-foreground">
-            Preview (first 7 rows)
-          </h3>
-          <PreviewTable trades={trades} maxRows={7} />
-        </div>
-      </div>
-
-      {/* Summary */}
-      <div className="mb-4 rounded-lg border border-border bg-muted/20 p-4">
-        <p className="text-sm font-medium text-foreground">
-          {trades.length} trade{trades.length !== 1 ? 's' : ''} found
-          {fileName ? ` in "${fileName}"` : ''}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Previously imported duplicates will be skipped automatically.
-        </p>
-      </div>
-
-      {/* Warnings */}
-      {warnings.length > 0 && (
-        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/40 dark:bg-amber-900/20">
-          <p className="mb-2 text-sm font-medium text-amber-800 dark:text-amber-300">
-            {warnings.length} warning{warnings.length !== 1 ? 's' : ''} from parsing
-          </p>
-          <ul className="space-y-1">
-            {warnings.map((w, i) => (
-              <li key={i} className="text-xs text-amber-700 dark:text-amber-400">
-                {w}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Import error */}
-      {importError && (
-        <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-          {importError}
-        </div>
-      )}
-
-      {/* Success message */}
-      {importSuccess && (
-        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-900/20 dark:text-emerald-400">
-          Import successful! Redirecting to dashboard...
-        </div>
-      )}
-
-      {/* Action row */}
-      <div className="flex items-center gap-3">
-        <Button variant="outline" onClick={handleBack} disabled={isPending}>
-          ← Back
-        </Button>
-        <Button
-          onClick={handleImport}
-          disabled={isPending || trades.length === 0 || importSuccess}
-          className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={() => { setStage('drop'); setParsed(null); }}
+          style={{ font: 'inherit', cursor: 'pointer', height: 40, padding: '0 18px', borderRadius: 9, border: '1px solid var(--border-2)', background: 'var(--surface)', color: 'var(--text-1)', fontSize: 13, fontWeight: 600 }}
         >
-          {isPending ? 'Importing…' : `Import ${trades.length} trade${trades.length !== 1 ? 's' : ''}`}
-        </Button>
+          Back
+        </button>
+        <button
+          disabled={importing}
+          onClick={async () => { setImporting(true); await onImport(parsed.trades); setImporting(false); }}
+          style={{ font: 'inherit', cursor: importing ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: '0 22px', borderRadius: 9, border: 0, background: 'var(--pos)', color: '#fff', fontSize: 13.5, fontWeight: 700, opacity: importing ? 0.7 : 1 }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          {importing ? 'Importing…' : `Import ${parsed.trades.length} trades`}
+        </button>
       </div>
     </div>
   );

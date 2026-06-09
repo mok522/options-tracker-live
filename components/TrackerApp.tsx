@@ -1,0 +1,61 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import type { Trade } from '@/types/trade';
+import { upsertTrades } from '@/actions/upsertTrades';
+import { Topbar } from '@/components/layout/Topbar';
+import { DashboardView } from '@/components/dashboard/DashboardView';
+import { TradesView } from '@/components/trades/TradesView';
+import { TaxView } from '@/components/tax/TaxView';
+import { ImportView } from '@/components/import/ImportView';
+
+type Tab = 'Dashboard' | 'Trades' | 'Tax Exposure' | 'Import';
+
+function useTheme(): [boolean, (fn: (d: boolean) => boolean) => void] {
+  const [dark, setDark] = useState(() => {
+    try { return localStorage.getItem('ott-theme') === 'dark'; } catch { return false; }
+  });
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+    try { localStorage.setItem('ott-theme', dark ? 'dark' : 'light'); } catch { /* noop */ }
+  }, [dark]);
+  return [dark, setDark];
+}
+
+export function TrackerApp({ initialTrades = [] }: { initialTrades?: Trade[] }) {
+  const router = useRouter();
+  const [dark, setDark] = useTheme();
+  const [tab, setTab] = useState<Tab>(initialTrades.length ? 'Dashboard' : 'Import');
+  const [trades, setTrades] = useState<Trade[]>(initialTrades);
+  const [lastImport, setLastImport] = useState<string>('');
+
+  const onImport = async (newTrades: Trade[]) => {
+    if (newTrades.length) {
+      setTrades(newTrades);
+      await upsertTrades(newTrades);
+    }
+    const now = new Date();
+    const stamp = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+      ' · ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    setLastImport(stamp);
+    router.refresh();
+    setTab('Dashboard');
+  };
+
+  const view = () => {
+    switch (tab) {
+      case 'Trades':       return <TradesView trades={trades} />;
+      case 'Tax Exposure': return <TaxView trades={trades} />;
+      case 'Import':       return <ImportView onImport={onImport} lastImport={lastImport} />;
+      default:             return <DashboardView trades={trades} setTab={(t) => setTab(t as Tab)} />;
+    }
+  };
+
+  return (
+    <div className="dash" style={{ display: 'flex', flexDirection: 'column' }}>
+      <Topbar dark={dark} setDark={setDark} tab={tab} setTab={setTab} />
+      {view()}
+    </div>
+  );
+}

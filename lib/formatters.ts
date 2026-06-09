@@ -1,42 +1,21 @@
-/**
- * Pure utility functions for formatting numbers as currency, percentages, etc.
- */
-
-const USD_FORMATTER = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-/**
- * Format as USD currency: 1234.5 → "$1,234.50", -500 → "-$500.00"
- */
-export function fmtUSD(value: number): string {
-  return USD_FORMATTER.format(value);
+/** Format as USD: 1234 → '$1,234', -500 → '−$500'. Unicode minus for negatives. */
+export function fmtUSD(n: number, dp = 0): string {
+  const s = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  return (n < 0 ? '−$' : '$') + s;
 }
 
-/**
- * Format with explicit +/- sign: 50 → "+$50.00", -200 → "-$200.00"
- */
-export function fmtSigned(value: number): string {
-  const formatted = USD_FORMATTER.format(Math.abs(value));
-  return value >= 0 ? `+${formatted}` : `-${formatted}`;
+/** Format with explicit sign: +$1,234 or −$1,234 */
+export function fmtSigned(n: number, dp = 0): string {
+  return (n >= 0 ? '+' : '−') + '$' +
+    Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 }
 
-/**
- * Format as percentage: 0.524 → "52.4%", -0.1 → "-10.0%"
- */
+/** Format a plain number: 12.40 */
+export function fmtNum(n: number, dp = 2): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+}
+
+/** Format percentage: 0.524 → '52.4%' */
 export function fmtPct(value: number, decimals = 1): string {
   return `${(value * 100).toFixed(decimals)}%`;
-}
-
-/**
- * Format a number with commas: 1234567 → "1,234,567"
- */
-export function fmtNum(value: number, decimals = 0): string {
-  return new Intl.NumberFormat('en-US', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(value);
 }

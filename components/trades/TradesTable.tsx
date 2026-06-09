@@ -96,12 +96,15 @@ export function TradesTable({ positions }: Props) {
     <div className="w-full overflow-x-auto rounded-md border border-border">
       <table className="w-full text-xs">
         <thead>
-          <tr className="border-b border-border bg-muted/50">
+          <tr className="border-b border-border" style={{ background: 'var(--inset)' }}>
             {COLS.map((col) => (
               <th
                 key={col.key}
                 onClick={() => handleSort(col.key)}
-                className="cursor-pointer select-none whitespace-nowrap px-3 py-2 text-left font-medium text-muted-foreground hover:text-foreground"
+                className="cursor-pointer select-none whitespace-nowrap px-3 py-2 text-left text-[10.5px] font-semibold uppercase tracking-[0.4px] transition-colors"
+                style={{ color: 'var(--text-3)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-1)')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-3)')}
               >
                 {col.label}
                 <SortIndicator colKey={col.key} />
@@ -125,27 +128,29 @@ export function TradesTable({ positions }: Props) {
             return (
               <tr
                 key={p.id}
-                className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
+                className="border-b border-border last:border-0 transition-colors"
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--hover)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '')}
               >
-                <td className="whitespace-nowrap px-3 py-1.5 font-medium">
+                <td className="whitespace-nowrap px-3 py-1.5 text-[12px] font-semibold" style={{ color: 'var(--text-1)' }}>
                   {p.underlying}
                 </td>
-                <td className="whitespace-nowrap px-3 py-1.5 text-muted-foreground">
+                <td className="whitespace-nowrap px-3 py-1.5 text-[12px]" style={{ color: 'var(--text-2)' }}>
                   {p.strategy}
                 </td>
                 <td className="whitespace-nowrap px-3 py-1.5">
                   <StatusPill status={p.status} />
                 </td>
-                <td className="whitespace-nowrap px-3 py-1.5 tabular-nums text-muted-foreground">
+                <td className="whitespace-nowrap px-3 py-1.5 text-[12px] tabular-nums" style={{ color: 'var(--text-3)' }}>
                   {fmtDate(p.openDate)}
                 </td>
-                <td className="whitespace-nowrap px-3 py-1.5 tabular-nums text-muted-foreground">
+                <td className="whitespace-nowrap px-3 py-1.5 text-[12px] tabular-nums" style={{ color: 'var(--text-3)' }}>
                   {fmtDate(p.closeDate)}
                 </td>
-                <td className="whitespace-nowrap px-3 py-1.5 tabular-nums text-muted-foreground">
+                <td className="whitespace-nowrap px-3 py-1.5 text-[12px] tabular-nums" style={{ color: 'var(--text-3)' }}>
                   {fmtDate(p.expiration)}
                 </td>
-                <td className="whitespace-nowrap px-3 py-1.5 tabular-nums text-right">
+                <td className="whitespace-nowrap px-3 py-1.5 text-[12px] tabular-nums text-right" style={{ color: 'var(--text-2)' }}>
                   {p.qty}
                 </td>
                 <td

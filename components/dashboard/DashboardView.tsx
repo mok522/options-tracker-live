@@ -1,175 +1,218 @@
 'use client';
 
-import Link from 'next/link';
-import type { Position, TaxSummary } from '@/types';
-import { fmtUSD, fmtSigned, fmtPct } from '@/lib/formatters';
-import {
-  selectMonthlyPnL,
-  selectCumulativePnL,
-  selectStrategyBreakdown,
-  selectWinRateBySymbol,
-  selectKPIs,
-} from '@/lib/selectors';
-import { Panel } from '@/components/shared/Panel';
-import { MetricTile } from '@/components/shared/MetricTile';
-import { StatusPill } from '@/components/shared/StatusPill';
-import { MonthlyBars } from '@/components/charts/MonthlyBars';
+import { useMemo } from 'react';
+import type { Trade } from '@/types/trade';
+import { fmtSigned, fmtUSD } from '@/lib/formatters';
+import { S1256_SYMS } from '@/lib/csvParser';
+import { Tile } from '@/components/layout/Tile';
+import { Panel } from '@/components/layout/Panel';
+import { Icon } from '@/components/shared/Icon';
+import { TradesTable } from '@/components/shared/TradesTable';
 import { CumulativeLine } from '@/components/charts/CumulativeLine';
-import { StrategyDonut } from '@/components/charts/StrategyDonut';
+import { MonthlyBars } from '@/components/charts/MonthlyBars';
+import { StrategyDonut, DonutLegend } from '@/components/charts/StrategyDonut';
 import { WinRateBars } from '@/components/charts/WinRateBars';
+import { Delta } from '@/components/shared/Delta';
 
 interface DashboardViewProps {
-  positions: Position[];
-  taxSummary: TaxSummary;
+  trades: Trade[];
+  setTab: (t: string) => void;
 }
 
-export function DashboardView({ positions }: DashboardViewProps) {
-  if (positions.length === 0) {
-    return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 p-8 text-center">
-        <p className="text-muted-foreground text-lg">
-          No trade data yet. Import a CSV to get started.
-        </p>
-        <Link
-          href="/import"
-          className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          Import CSV
-        </Link>
-      </div>
-    );
-  }
+const MON_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const commOf = (t: Trade) => (t.comm != null ? t.comm : -(Math.round(t.qty * 0.66 * 100) / 100));
+const s1256set = new Set(S1256_SYMS);
 
-  const kpis = selectKPIs(positions);
-  const monthlyPnL = selectMonthlyPnL(positions);
-  const cumulativePnL = selectCumulativePnL(positions);
-  const strategyBreakdown = selectStrategyBreakdown(positions);
-  const winRateBySymbol = selectWinRateBySymbol(positions);
+export function DashboardView({ trades, setTab }: DashboardViewProps) {
+  const closed = useMemo(() => trades.filter((t) => t.status !== 'Open'), [trades]);
+  const wins   = useMemo(() => closed.filter((t) => t.pl > 0), [closed]);
+  const losses = useMemo(() => closed.filter((t) => t.pl < 0), [closed]);
 
-  // Last 6 closed positions
-  const recentClosed = [...positions]
-    .filter((p) => p.status !== 'Open' && p.closeDate !== null)
-    .sort((a, b) => new Date(b.closeDate!).getTime() - new Date(a.closeDate!).getTime())
-    .slice(0, 6);
+  const netPL        = useMemo(() => trades.reduce((s, t) => s + t.pl, 0), [trades]);
+  const winRate      = closed.length ? Math.round((wins.length / closed.length) * 1000) / 10 : 0;
+  const grossWin     = wins.reduce((s, t) => s + t.pl, 0);
+  const grossLoss    = Math.abs(losses.reduce((s, t) => s + t.pl, 0));
+  const profitFactor = grossLoss > 0 ? Math.round((grossWin / grossLoss) * 100) / 100 : 0;
+  const avgTrade     = closed.length ? Math.round(netPL / closed.length) : 0;
+  const openCt       = useMemo(() => trades.filter((t) => t.status === 'Open').length, [trades]);
+  const totalComm    = useMemo(() => Math.round(trades.reduce((s, t) => s + commOf(t), 0) * 100) / 100, [trades]);
+
+  // Tax sidebar calcs (mirror TaxView logic)
+  const s1256PL     = trades.filter((t) => s1256set.has(t.sym)).reduce((s, t) => s + t.pl, 0);
+  const shortTermPL = closed.filter((t) => !s1256set.has(t.sym)).reduce((s, t) => s + (t.pl > 0 ? t.pl : 0), 0);
+  const estTax      = Math.round((shortTermPL * 0.24 + Math.max(0, s1256PL * 0.4) * 0.24 + Math.max(0, s1256PL * 0.6) * 0.15) * 100) / 100;
+
+  // Sparkline for Net P&L tile (trade-import order — approximate trend)
+  const cumulSpark = useMemo(
+    () => trades.reduce<number[]>((acc, t) => { acc.push((acc.at(-1) ?? 0) + t.pl); return acc; }, [0]),
+    [trades],
+  );
+
+  const winRateDelta = Math.round((winRate - 50) * 10) / 10;
+
+  // --- Monthly bars: last 12 calendar months ---
+  const monthlyData = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of trades) {
+      if (!t.date || t.status === 'Open') continue;
+      const key = t.date.slice(0, 7); // "YYYY-MM"
+      map.set(key, (map.get(key) ?? 0) + t.pl);
+    }
+    const now = new Date();
+    const result: { m: string; pl: number }[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      result.push({ m: MON_ABBR[d.getMonth()], pl: Math.round((map.get(key) ?? 0) * 100) / 100 });
+    }
+    return result;
+  }, [trades]);
+
+  // --- Cumulative line: date-sorted running sum + 6 evenly-spaced labels ---
+  const { cumulativeData, cumulativeLabels } = useMemo(() => {
+    const dated = trades
+      .filter((t) => t.date && t.date.length === 10)
+      .sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : 0));
+
+    if (dated.length === 0) return { cumulativeData: undefined, cumulativeLabels: undefined };
+
+    const pts: number[] = [0];
+    for (const t of dated) pts.push(pts[pts.length - 1] + t.pl);
+
+    const n = dated.length;
+    const idxs = [0, Math.floor(n * 0.2), Math.floor(n * 0.4), Math.floor(n * 0.6), Math.floor(n * 0.8), n - 1];
+    const labels = idxs.map((i) => {
+      const d = new Date(dated[Math.min(i, n - 1)].date! + 'T00:00:00');
+      return MON_ABBR[d.getMonth()];
+    });
+
+    return { cumulativeData: pts, cumulativeLabels: labels };
+  }, [trades]);
+
+  // --- Strategy donut: top-5 by |pl| ---
+  const strategyData = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of closed) map.set(t.strat, (map.get(t.strat) ?? 0) + t.pl);
+    if (map.size === 0) return undefined;
+
+    const sorted = [...map.entries()]
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
+      .slice(0, 5);
+    const totalAbs = sorted.reduce((s, [, pl]) => s + Math.abs(pl), 0);
+    if (totalAbs === 0) return undefined;
+
+    return sorted.map(([name, pl], i) => ({
+      name,
+      pct: Math.round((Math.abs(pl) / totalAbs) * 100),
+      pl: Math.round(pl * 100) / 100,
+      varName: `--cat-${i + 1}` as string,
+    }));
+  }, [closed]);
+
+  // --- Win-rate bars: top-6 symbols by trade count ---
+  const winRateData = useMemo(() => {
+    const map = new Map<string, { wins: number; total: number }>();
+    for (const t of closed) {
+      const cur = map.get(t.sym) ?? { wins: 0, total: 0 };
+      cur.total += 1;
+      if (t.pl > 0) cur.wins += 1;
+      map.set(t.sym, cur);
+    }
+    if (map.size === 0) return undefined;
+
+    return [...map.entries()]
+      .sort((a, b) => b[1].total - a[1].total)
+      .slice(0, 6)
+      .map(([sym, { wins, total }]) => ({
+        sym,
+        rate: Math.round((wins / total) * 100),
+        n: total,
+      }));
+  }, [closed]);
 
   return (
-    <div className="p-6 space-y-6">
-      {/* 3-column grid */}
-      <div className="grid grid-cols-[220px_1fr_280px] gap-4 items-start">
-        {/* Left column: KPI tiles */}
-        <div className="flex flex-col gap-3">
-          <MetricTile
-            label="Net Realized P&L"
-            value={fmtUSD(kpis.netPnl)}
-            delta={fmtSigned(kpis.netPnl)}
-          />
-          <MetricTile
-            label="Win Rate"
-            value={fmtPct(kpis.winRate)}
-          />
-          <MetricTile
-            label="Profit Factor"
-            value={kpis.profitFactor.toFixed(2)}
-          />
-          <MetricTile
-            label="Avg / Trade"
-            value={fmtSigned(kpis.avgPerTrade)}
-            delta={kpis.avgPerTrade >= 0 ? `+${fmtUSD(kpis.avgPerTrade)}` : fmtUSD(kpis.avgPerTrade)}
-          />
-          <MetricTile
-            label="Open Positions"
-            value={kpis.openCount.toString()}
-          />
-          <MetricTile
-            label="Commissions"
-            value={fmtUSD(kpis.commissionsTotal)}
-          />
-        </div>
+    <div style={{ flex: 1, padding: 13, display: 'flex', flexDirection: 'column', gap: 11, overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '208px minmax(0,1fr) 312px', gap: 11, minHeight: 0 }}>
 
-        {/* Center column: charts */}
-        <div className="flex flex-col gap-4">
-          <Panel title="Cumulative P&L">
-            <CumulativeLine data={cumulativePnL} />
-          </Panel>
-          <Panel title="Monthly P&L">
-            <MonthlyBars data={monthlyPnL} />
+        {/* left stat rail */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0 }}>
+          <Tile label="Net Realized P&L" value={fmtSigned(netPL)} tone={netPL >= 0 ? 'pos' : 'neg'} spark={cumulSpark} />
+          <Tile label="Win Rate" value={winRate + '%'} delta={winRateDelta} />
+          <Tile label="Profit Factor" value={profitFactor > 0 ? profitFactor.toFixed(2) : '—'} />
+          <Tile label="Avg / Trade" value={closed.length ? fmtSigned(avgTrade) : '—'} tone={avgTrade >= 0 ? 'pos' : 'neg'} />
+          <Tile label="Open Positions" value={openCt} />
+          <Tile label="Commissions YTD" value={fmtUSD(totalComm)} tone="neg" />
+          <Panel
+            title="Tax Exposure"
+            sub="est."
+            style={{ flex: 1 }}
+            pad="8px 13px 11px"
+            bodyStyle={{ display: 'flex', flexDirection: 'column', gap: 7, justifyContent: 'center' }}
+          >
+            {([
+              ['Short-term', fmtUSD(shortTermPL)],
+              ['Long-term',  fmtUSD(0)],
+              ['§1256 60/40', fmtUSD(s1256PL)],
+            ] as [string, string][]).map(([l, v]) => (
+              <div key={l} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11.5 }}>
+                <span style={{ color: 'var(--text-2)', whiteSpace: 'nowrap' }}>{l}</span>
+                <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{v}</span>
+              </div>
+            ))}
+            <button
+              onClick={() => setTab('Tax Exposure')}
+              style={{ marginTop: 4, font: 'inherit', cursor: 'pointer', border: 0, background: 'transparent', padding: 0, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 600, color: 'var(--accent)' }}
+            >
+              View tax report <Icon name="chevRight" size={12} />
+            </button>
           </Panel>
         </div>
 
-        {/* Right column: donut + win rate */}
-        <div className="flex flex-col gap-4">
-          <Panel title="Strategy Mix">
-            <StrategyDonut data={strategyBreakdown} />
+        {/* center charts */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0 }}>
+          <Panel title="Cumulative Realized P&L" sub="YTD" style={{ flex: 1.42 }} right={<Delta value={winRateDelta} />}>
+            <CumulativeLine width={640} height={206} data={cumulativeData} labels={cumulativeLabels} />
           </Panel>
-          <Panel title="Win Rate by Symbol">
-            <WinRateBars data={winRateBySymbol} />
+          <Panel title="Monthly Realized P&L" sub="trailing 12 mo" style={{ flex: 1 }}>
+            <MonthlyBars width={640} height={150} data={monthlyData} />
+          </Panel>
+        </div>
+
+        {/* right rail */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0 }}>
+          <Panel
+            title="Strategy Mix"
+            sub="of P&L"
+            style={{ flex: 1 }}
+            bodyStyle={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 11, justifyContent: 'center' }}
+          >
+            <StrategyDonut size={130} thickness={21} data={strategyData} />
+            <div style={{ width: '100%' }}><DonutLegend data={strategyData} /></div>
+          </Panel>
+          <Panel title="Win Rate by Symbol" sub="top 6" style={{ flex: 1 }}>
+            <WinRateBars width={286} height={158} data={winRateData} />
           </Panel>
         </div>
       </div>
 
-      {/* Recent trades strip */}
-      <Panel title="Recent Closed Trades">
-        {recentClosed.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No closed trades yet.</p>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="pb-2 text-left font-medium text-muted-foreground">Symbol</th>
-                    <th className="pb-2 text-left font-medium text-muted-foreground">Strategy</th>
-                    <th className="pb-2 text-left font-medium text-muted-foreground">Status</th>
-                    <th className="pb-2 text-left font-medium text-muted-foreground">Close Date</th>
-                    <th className="pb-2 text-right font-medium text-muted-foreground">P&L</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentClosed.map((pos) => {
-                    const pnl = pos.realizedPnl ?? 0;
-                    const closeDate =
-                      pos.closeDate instanceof Date
-                        ? pos.closeDate
-                        : new Date(pos.closeDate!);
-                    return (
-                      <tr
-                        key={pos.id}
-                        className="border-b border-border/50 last:border-0"
-                      >
-                        <td className="py-2 font-medium">{pos.underlying}</td>
-                        <td className="py-2 text-muted-foreground">{pos.strategy}</td>
-                        <td className="py-2">
-                          <StatusPill status={pos.status} />
-                        </td>
-                        <td className="py-2 text-muted-foreground">
-                          {closeDate.toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: '2-digit',
-                          })}
-                        </td>
-                        <td
-                          className="py-2 text-right font-medium tabular-nums"
-                          style={{ color: pnl >= 0 ? 'var(--color-pos)' : 'var(--color-neg)' }}
-                        >
-                          {fmtSigned(pnl)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-            <div className="mt-3 text-right">
-              <Link
-                href="/trades"
-                className="text-sm text-primary hover:underline"
-              >
-                View all trades →
-              </Link>
-            </div>
-          </>
-        )}
+      {/* recent trades */}
+      <Panel
+        title="Recent Trades"
+        sub={`${closed.length} closed · ${openCt} open`}
+        right={
+          <button
+            onClick={() => setTab('Trades')}
+            style={{ font: 'inherit', cursor: 'pointer', border: 0, background: 'transparent', display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}
+          >
+            View all trades <Icon name="chevRight" size={13} />
+          </button>
+        }
+        style={{ flex: '0 0 auto', height: 220 }}
+        pad="0 6px 4px"
+      >
+        <div style={{ height: '100%', overflowY: 'auto' }}>
+          <TradesTable rows={trades.slice(0, 6)} dense />
+        </div>
       </Panel>
     </div>
   );

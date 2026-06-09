@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local test data (real account statements — do not commit)
+test-data/
+
+# scratch / archive files
+*.bak
+context.zip
+design.zip

@@ -30,3 +30,18 @@ export const settings = sqliteTable('settings', {
   key:   text('key').primaryKey(),
   value: text('value').notNull(),
 });
+
+export const trades = sqliteTable('trades', {
+  id:     text('id').primaryKey(),
+  sym:    text('sym').notNull(),
+  strat:  text('strat').notNull(),
+  side:   text('side').notNull(),
+  qty:    integer('qty').notNull(),
+  strike: text('strike').notNull(),
+  exp:    text('exp').notNull(),
+  fill:   real('fill').notNull(),
+  comm:   real('comm'),
+  pl:     real('pl').notNull(),
+  status: text('status').notNull(),
+  date:   text('date').notNull().default(''),
+});

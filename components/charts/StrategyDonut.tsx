@@ -1,85 +1,61 @@
 'use client';
 
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { sampleStrategies } from '@/lib/sampleData';
+import { fmtSigned } from '@/lib/formatters';
+
+interface StrategyItem {
+  name: string;
+  pct: number;
+  pl: number;
+  varName: string;
+}
 
 interface StrategyDonutProps {
-  data: { name: string; value: number; pct: number }[];
+  size?: number;
+  data?: StrategyItem[];
+  thickness?: number;
 }
 
-const PALETTE = [
-  '#3b82f6', // blue-500
-  '#8b5cf6', // violet-500
-  '#f59e0b', // amber-500
-  '#10b981', // emerald-500
-  '#f43f5e', // rose-500
-  '#06b6d4', // cyan-500
-  '#6b7280', // gray-500 — "Other"
-];
-
-function CustomTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: { name: string; value: number; payload: { pct: number } }[];
-}) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0];
+export function StrategyDonut({ size = 168, data = sampleStrategies, thickness = 26 }: StrategyDonutProps) {
+  const r = size / 2, ir = r - thickness, cx = r, cy = r;
+  let a0 = -Math.PI / 2;
+  const gap = 0.035;
+  const arcs = data.map((d) => {
+    const sweep = (d.pct / 100) * Math.PI * 2;
+    const s = a0 + gap / 2, e = a0 + sweep - gap / 2;
+    a0 += sweep;
+    const large = e - s > Math.PI ? 1 : 0;
+    const p = (ang: number, rad: number): [number, number] => [cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad];
+    const [x1, y1] = p(s, r), [x2, y2] = p(e, r);
+    const [x3, y3] = p(e, ir), [x4, y4] = p(s, ir);
+    return { d, path: `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${ir} ${ir} 0 ${large} 0 ${x4} ${y4} Z` };
+  });
   return (
-    <div className="rounded border border-border bg-card px-3 py-2 text-sm shadow-md">
-      <p className="font-medium">{d.name}</p>
-      <p className="text-muted-foreground">
-        {d.value} trade{d.value !== 1 ? 's' : ''} ({(d.payload.pct * 100).toFixed(1)}%)
-      </p>
-    </div>
+    <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{ display: 'block' }}>
+      {arcs.map((a, i) => <path key={i} d={a.path} style={{ fill: `var(${a.d.varName})` }} />)}
+      <text x={cx} y={cy - 4} textAnchor="middle" style={{ fill: 'var(--text-1)', fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{data.length}</text>
+      <text x={cx} y={cy + 13} textAnchor="middle" style={{ fill: 'var(--text-3)', fontSize: 10, fontWeight: 500, letterSpacing: '0.3px' }}>STRATEGIES</text>
+    </svg>
   );
 }
 
-function CustomLegend({ payload }: { payload?: { value: string; color: string }[] }) {
-  if (!payload) return null;
+interface DonutLegendProps {
+  data?: StrategyItem[];
+  metric?: 'pct' | 'pl';
+}
+
+export function DonutLegend({ data = sampleStrategies, metric = 'pct' }: DonutLegendProps) {
   return (
-    <ul className="mt-2 flex flex-wrap justify-center gap-x-3 gap-y-1">
-      {payload.map((entry, idx) => (
-        <li key={idx} className="flex items-center gap-1 text-xs text-muted-foreground">
-          <span
-            className="inline-block h-2.5 w-2.5 rounded-full"
-            style={{ background: entry.color }}
-          />
-          {entry.value}
-        </li>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+      {data.map((d, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+          <span style={{ width: 9, height: 9, borderRadius: 3, background: `var(${d.varName})`, flex: '0 0 auto' }}></span>
+          <span style={{ color: 'var(--text-2)', flex: 1, whiteSpace: 'nowrap' }}>{d.name}</span>
+          <span style={{ color: 'var(--text-1)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+            {metric === 'pct' ? d.pct + '%' : fmtSigned(d.pl)}
+          </span>
+        </div>
       ))}
-    </ul>
-  );
-}
-
-export function StrategyDonut({ data }: StrategyDonutProps) {
-  if (data.length === 0) {
-    return (
-      <div className="flex h-[200px] items-center justify-center text-sm text-muted-foreground">
-        No data
-      </div>
-    );
-  }
-
-  return (
-    <ResponsiveContainer width="100%" height={200}>
-      <PieChart>
-        <Pie
-          data={data}
-          cx="50%"
-          cy="45%"
-          innerRadius={50}
-          outerRadius={80}
-          dataKey="value"
-          nameKey="name"
-        >
-          {data.map((_, idx) => (
-            <Cell key={`cell-${idx}`} fill={PALETTE[idx % PALETTE.length]} />
-          ))}
-        </Pie>
-        <Tooltip content={<CustomTooltip />} />
-        <Legend content={<CustomLegend />} />
-      </PieChart>
-    </ResponsiveContainer>
+    </div>
   );
 }

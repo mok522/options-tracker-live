@@ -1,5 +1,2 @@
-import { ImportView } from '@/components/import/ImportView';
-
-export default function ImportPage() {
-  return <ImportView />;
-}
+import { redirect } from 'next/navigation';
+export default function ImportPage() { redirect('/'); }
