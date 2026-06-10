@@ -9,7 +9,7 @@ import { sampleTrades } from '@/lib/sampleData';
 import type { ParseResult } from '@/lib/csvParser';
 
 interface ImportViewProps {
-  onImport: (trades: Trade[]) => Promise<void>;
+  onImport: (legs: Trade[], hasPnl: boolean) => Promise<void>;
   lastImport?: string;
 }
 
@@ -191,7 +191,7 @@ export function ImportView({ onImport, lastImport }: ImportViewProps) {
         </button>
         <button
           disabled={importing}
-          onClick={async () => { setImporting(true); await onImport(parsed.trades); setImporting(false); }}
+          onClick={async () => { setImporting(true); await onImport(parsed.legs, parsed.hasPnl); setImporting(false); }}
           style={{ font: 'inherit', cursor: importing ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 8, height: 40, padding: '0 22px', borderRadius: 9, border: 0, background: 'var(--pos)', color: '#fff', fontSize: 13.5, fontWeight: 700, opacity: importing ? 0.7 : 1 }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>

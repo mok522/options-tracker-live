@@ -139,10 +139,9 @@ function buildId(t: Trade): string {
 
 // Match opening and closing legs into round trips and compute realized P&L.
 // Used when the CSV has no P&L column (TOS Account Trade History format).
-// Legs come newest-first from TOS; reverse to process oldest-first for correct FIFO.
-function buildPositions(legs: Trade[]): Trade[] {
+// Input MUST be oldest-first so FIFO matching is correct; callers order the legs.
+function buildPositions(ordered: Trade[]): Trade[] {
   const today = new Date();
-  const ordered = [...legs].reverse();
   const openQueues = new Map<string, Trade[]>();
   const results: Trade[] = [];
 
@@ -216,24 +215,69 @@ export interface ParseResult {
   headers: string[];
   map: Record<string, number>;
   trades: Trade[];
+  // Raw per-execution legs (before round-trip matching) + whether this file
+  // carried a realized-P&L column. These are persisted so positions can be
+  // recomputed across multiple imported files.
+  legs: Trade[];
+  hasPnl: boolean;
+}
+
+// Compute the displayed Trade[] from a single file's legs.
+// P&L column present → trust the CSV's per-row values. Absent → FIFO-match
+// legs (newest-first from TOS) into round trips.
+function computeFromFile(legs: Trade[], hasPnl: boolean): Trade[] {
+  return hasPnl
+    ? legs.map((t) => ({ ...t, id: buildId(t) }))
+    : buildPositions([...legs].reverse());
 }
 
 export function parseTradeCSV(text: string): ParseResult {
   const delimiter = detectDelimiter(text);
   const rows = parseCSV(text, delimiter);
-  if (rows.length < 2) return { headers: [], map: {}, trades: [] };
+  if (rows.length < 2) return { headers: [], map: {}, trades: [], legs: [], hasPnl: false };
   const headerIdx = findBestHeaderRow(rows);
   const headers = rows[headerIdx];
   const map = mapHeaders(headers);
   const legs = rowsToTrades(rows.slice(headerIdx + 1), map);
+  const hasPnl = map['P&L'] !== -1;
 
-  // When a P&L column is present in the CSV, use those values directly.
-  // When absent (TOS Account Trade History), match legs into round trips.
-  const trades = map['P&L'] !== -1
-    ? legs.map((t) => ({ ...t, id: buildId(t) }))
-    : buildPositions(legs);
+  return { headers, map, trades: computeFromFile(legs, hasPnl), legs, hasPnl };
+}
 
-  return { headers, map, trades };
+// A raw execution leg tagged with the parsing mode of the file it came from.
+export interface PersistedLeg extends Trade {
+  hasPnl: boolean;
+}
+
+// Stable identity for a raw leg, used to dedupe across re-imports / overlapping
+// date ranges. Date is day-level (TOS exec time-of-day is dropped on parse).
+export function legKey(t: Trade): string {
+  return [t.date ?? '', t.sym, t.exp, t.strike, t.side, t.qty, t.fill, t.status].join('|');
+}
+
+// Recompute every position from the UNION of all persisted legs. This is what
+// lets a trade that opens in one file and closes in another match correctly:
+// both legs live in the union, so FIFO pairing resolves the real P&L.
+export function recomputePositions(legs: PersistedLeg[]): Trade[] {
+  const out: Trade[] = [];
+
+  // P&L-column files: rows are already realized — trust them, dedupe by id.
+  const pnlLegs = legs.filter((l) => l.hasPnl);
+  out.push(...pnlLegs.map((t) => ({ ...t, id: buildId(t) })));
+
+  // Trade-history files: FIFO-match the union oldest-first. On the same day,
+  // opens are processed before closes so a same-day round trip pairs correctly.
+  const matchLegs = legs.filter((l) => !l.hasPnl);
+  if (matchLegs.length) {
+    const ordered = [...matchLegs].sort((a, b) => {
+      const d = (a.date ?? '').localeCompare(b.date ?? '');
+      if (d !== 0) return d;
+      return (a.status === 'Open' ? 0 : 1) - (b.status === 'Open' ? 0 : 1);
+    });
+    out.push(...buildPositions(ordered));
+  }
+
+  return out;
 }
 
 export function deduplicateTrades(incoming: Trade[], existing: Trade[]): { added: Trade[]; skipped: number } {

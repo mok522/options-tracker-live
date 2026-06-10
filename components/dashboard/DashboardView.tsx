@@ -132,7 +132,7 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
 
   return (
     <div style={{ flex: 1, padding: 13, display: 'flex', flexDirection: 'column', gap: 11, overflow: 'hidden' }}>
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '208px minmax(0,1fr) 312px', gap: 11, minHeight: 0 }}>
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '188px minmax(0,1fr) 276px', gap: 11, minHeight: 0 }}>
 
         {/* left stat rail */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0 }}>
@@ -171,10 +171,10 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
         {/* center charts */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0, height: '100%' }}>
           <Panel title="Cumulative Realized P&L" sub="YTD" style={{ flex: 1.42 }} right={<Delta value={winRateDelta} />}>
-            <CumulativeLine width={640} height={206} data={cumulativeData} labels={cumulativeLabels} />
+            <CumulativeLine width={820} height={206} data={cumulativeData} labels={cumulativeLabels} />
           </Panel>
           <Panel title="Monthly Realized P&L" sub="trailing 12 mo" style={{ flex: 1 }}>
-            <MonthlyBars width={640} height={150} data={monthlyData} />
+            <MonthlyBars width={820} height={150} data={monthlyData} />
           </Panel>
         </div>
 

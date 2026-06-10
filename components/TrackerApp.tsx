@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Trade } from '@/types/trade';
-import { upsertTrades } from '@/actions/upsertTrades';
+import { importTrades } from '@/actions/upsertTrades';
 import { Topbar } from '@/components/layout/Topbar';
 import { DashboardView } from '@/components/dashboard/DashboardView';
 import { TradesView } from '@/components/trades/TradesView';
@@ -30,10 +30,12 @@ export function TrackerApp({ initialTrades = [] }: { initialTrades?: Trade[] }) 
   const [trades, setTrades] = useState<Trade[]>(initialTrades);
   const [lastImport, setLastImport] = useState<string>('');
 
-  const onImport = async (newTrades: Trade[]) => {
-    if (newTrades.length) {
-      setTrades(newTrades);
-      await upsertTrades(newTrades);
+  const onImport = async (legs: Trade[], hasPnl: boolean) => {
+    if (legs.length) {
+      // Persist legs + recompute positions across all imported files,
+      // then show the full accumulated set (not just this file).
+      const recomputed = await importTrades(legs, hasPnl);
+      setTrades(recomputed);
     }
     const now = new Date();
     const stamp = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +

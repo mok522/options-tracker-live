@@ -43,15 +43,29 @@ App (tracker-app.jsx)
 ## Data flow
 ```
 ThinkOrSwim CSV export
-  → ImportView (parseCSV)
-    → detectStrategy()         # infers strategy from spread/type columns
-    → matchOpenClose()         # pairs open/close legs
-    → deduplicate (id = btoa of execTime|symbol|price|qty)
-    → trades[] array
-      → window.storage.set('tos-trades', JSON.stringify(trades))
-        → loadTrades() on mount
-          → renderAll() → DashboardView, TradesView, TaxView
+  → ImportView (parseTradeCSV)
+    → rowsToTrades()           # one Trade per raw execution leg
+    → ParseResult { legs[], hasPnl, trades(preview) }
+      → onImport(legs, hasPnl)
+        → importTrades() server action
+          → merge legs into settings['raw_legs'] (deduped by legKey)
+          → recomputePositions(unionOfAllLegs)   # FIFO-match across ALL files
+          → rebuild `trades` table from recomputed set
+          → return recomputed Trade[] → setTrades()
+            → DashboardView, TradesView, TaxView
 ```
+
+### Multi-file import (raw legs are the source of truth)
+A trade can open in one statement file and close in a later one, so import does
+NOT store only computed round-trips. Every raw execution leg is persisted (JSON
+in `settings['raw_legs']`, deduped by `legKey`), and the full position set is
+recomputed from the union after each import:
+- **P&L-column files** (CSV has Realized P/L): rows trusted as-is, deduped by id.
+- **Trade-history files** (no P&L): legs FIFO-matched oldest-first (opens before
+  closes on the same day) so cross-file open/close pairs realize correctly.
+`importTrades` rebuilds the `trades` table each import; re-import is idempotent.
+**Migration note:** legacy `trades` rows are not back-filled into `raw_legs` —
+re-import statements once to seed the leg store.
 
 ## Storage schema
 ```js
