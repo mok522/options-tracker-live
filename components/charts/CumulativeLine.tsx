@@ -58,7 +58,7 @@ export function CumulativeLine({ width = 480, height = 220, data = sampleCumulat
   const gid = `cumgrad-${Math.round(width)}`;
   const months = labels ?? ['Jul', 'Sep', 'Nov', 'Jan', 'Mar', 'May'];
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ display: 'block', overflow: 'visible' }}>
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" style={{ display: 'block', overflow: 'visible' }}>
       <defs>
         <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" style={{ stopColor: 'var(--pos-soft)', stopOpacity: 0.28 }} />

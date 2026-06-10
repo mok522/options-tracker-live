@@ -169,7 +169,7 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
         </div>
 
         {/* center charts */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0, height: '100%' }}>
           <Panel title="Cumulative Realized P&L" sub="YTD" style={{ flex: 1.42 }} right={<Delta value={winRateDelta} />}>
             <CumulativeLine width={640} height={206} data={cumulativeData} labels={cumulativeLabels} />
           </Panel>
@@ -179,7 +179,7 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
         </div>
 
         {/* right rail */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0, height: '100%' }}>
           <Panel
             title="Strategy Mix"
             sub="of P&L"

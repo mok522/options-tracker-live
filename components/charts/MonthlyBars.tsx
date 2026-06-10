@@ -43,7 +43,7 @@ export function MonthlyBars({ width = 460, height = 200, data = sampleMonthly }:
   const lastIdx = data.length - 1;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block', overflow: 'visible' }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" style={{ display: 'block', overflow: 'visible' }}>
       {ticks.map((t, i) => (
         <g key={i}>
           <line x1={padL} x2={W - padR} y1={yv(t)} y2={yv(t)}

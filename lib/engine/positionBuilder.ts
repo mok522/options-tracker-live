@@ -87,7 +87,12 @@ function clusterLegs(trades: RawTrade[]): Cluster[] {
     }
 
     const sameUnderlying = current?.underlying === trade.underlying;
-    const sameSpread = current?.spread.toUpperCase() === trade.spread.toUpperCase();
+    // A blank Spread value means this is a secondary leg of the preceding
+    // multi-leg order — group it with the current cluster regardless of the
+    // parent's Spread label.
+    const isBlankSpread = trade.spread.trim() === '';
+    const sameSpread =
+      isBlankSpread || current?.spread.toUpperCase() === trade.spread.toUpperCase();
     const timeDeltaMs = currentTime ? Math.abs(tradeTime.getTime() - currentTime.getTime()) : Infinity;
     const within30s = timeDeltaMs <= 30_000;
 

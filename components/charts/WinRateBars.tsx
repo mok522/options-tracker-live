@@ -16,7 +16,7 @@ export function WinRateBars({ width = 460, height = 200, data = sampleSymbols }:
   const trackX = labelW, trackW = width - labelW - valW - padR;
   const refX = trackX + trackW * 0.5;
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{ display: 'block', overflow: 'visible' }}>
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" style={{ display: 'block', overflow: 'visible' }}>
       <line x1={refX} x2={refX} y1={4} y2={plotH} style={{ stroke: 'var(--axis)' }} strokeWidth="1" strokeDasharray="3 3" />
       <text x={refX} y={height - 2} textAnchor="middle" style={{ fill: 'var(--text-3)', fontSize: 9 }}>50%</text>
       {data.map((d, i) => {
