@@ -16,6 +16,8 @@ interface StrategyDonutProps {
   thickness?: number;
 }
 
+const r4 = (n: number) => Math.round(n * 1000) / 1000;
+
 export function StrategyDonut({ size = 168, data = sampleStrategies, thickness = 26 }: StrategyDonutProps) {
   const r = size / 2, ir = r - thickness, cx = r, cy = r;
   let a0 = -Math.PI / 2;
@@ -28,7 +30,7 @@ export function StrategyDonut({ size = 168, data = sampleStrategies, thickness =
     const p = (ang: number, rad: number): [number, number] => [cx + Math.cos(ang) * rad, cy + Math.sin(ang) * rad];
     const [x1, y1] = p(s, r), [x2, y2] = p(e, r);
     const [x3, y3] = p(e, ir), [x4, y4] = p(s, ir);
-    return { d, path: `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${ir} ${ir} 0 ${large} 0 ${x4} ${y4} Z` };
+    return { d, path: `M ${r4(x1)} ${r4(y1)} A ${r4(r)} ${r4(r)} 0 ${large} 1 ${r4(x2)} ${r4(y2)} L ${r4(x3)} ${r4(y3)} A ${r4(ir)} ${r4(ir)} 0 ${large} 0 ${r4(x4)} ${r4(y4)} Z` };
   });
   return (
     <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} style={{ display: 'block' }}>
