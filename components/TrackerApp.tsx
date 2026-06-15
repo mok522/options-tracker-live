@@ -6,11 +6,12 @@ import type { Trade } from '@/types/trade';
 import { importTrades } from '@/actions/upsertTrades';
 import { Topbar } from '@/components/layout/Topbar';
 import { DashboardView } from '@/components/dashboard/DashboardView';
+import { AnalyticsView } from '@/components/analytics/AnalyticsView';
 import { TradesView } from '@/components/trades/TradesView';
 import { TaxView } from '@/components/tax/TaxView';
 import { ImportView } from '@/components/import/ImportView';
 
-type Tab = 'Dashboard' | 'Trades' | 'Tax Exposure' | 'Import';
+type Tab = 'Dashboard' | 'Analytics' | 'Trades' | 'Tax Exposure' | 'Import';
 
 function useTheme(): [boolean, (fn: (d: boolean) => boolean) => void] {
   const [dark, setDark] = useState(() => {
@@ -47,6 +48,7 @@ export function TrackerApp({ initialTrades = [] }: { initialTrades?: Trade[] }) 
 
   const view = () => {
     switch (tab) {
+      case 'Analytics':    return <AnalyticsView trades={trades} />;
       case 'Trades':       return <TradesView trades={trades} />;
       case 'Tax Exposure': return <TaxView trades={trades} />;
       case 'Import':       return <ImportView onImport={onImport} lastImport={lastImport} />;

@@ -3,7 +3,7 @@
 import { Logo } from '@/components/shared/Logo';
 import { Icon } from '@/components/shared/Icon';
 
-type Tab = 'Dashboard' | 'Trades' | 'Tax Exposure' | 'Import';
+type Tab = 'Dashboard' | 'Analytics' | 'Trades' | 'Tax Exposure' | 'Import';
 
 interface TopbarProps {
   dark: boolean;
@@ -12,7 +12,7 @@ interface TopbarProps {
   setTab: (t: Tab) => void;
 }
 
-const TABS: Tab[] = ['Dashboard', 'Trades', 'Tax Exposure', 'Import'];
+const TABS: Tab[] = ['Dashboard', 'Analytics', 'Trades', 'Tax Exposure', 'Import'];
 
 function Quote({ sym, px, chg }: { sym: string; px: string; chg: number }) {
   return (
