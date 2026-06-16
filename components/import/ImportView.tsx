@@ -10,17 +10,30 @@ import type { ParseResult } from '@/lib/csvParser';
 
 interface ImportViewProps {
   onImport: (legs: Trade[], hasPnl: boolean) => Promise<void>;
+  onClear?: () => Promise<void>;
+  hasData?: boolean;
   lastImport?: string;
 }
 
-export function ImportView({ onImport, lastImport }: ImportViewProps) {
+export function ImportView({ onImport, onClear, hasData, lastImport }: ImportViewProps) {
   const [stage, setStage] = useState<'drop' | 'review'>('drop');
   const [drag, setDrag] = useState(false);
   const [fileName, setFileName] = useState('');
   const [parsed, setParsed] = useState<ParseResult | null>(null);
   const [importing, setImporting] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleClear = async () => {
+    if (!onClear) return;
+    if (!confirmClear) { setConfirmClear(true); return; }
+    setClearing(true);
+    await onClear();
+    setClearing(false);
+    setConfirmClear(false);
+  };
 
   const ingest = (text: string, name: string) => {
     const result = parseTradeCSV(text);
@@ -88,6 +101,32 @@ export function ImportView({ onImport, lastImport }: ImportViewProps) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11.5, color: 'var(--text-3)', marginTop: 4 }}>
           <Icon name="shield" size={13} /> Processed locally in your browser — your data never leaves this device.
         </div>
+        {onClear && hasData && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+            <button
+              onClick={handleClear}
+              disabled={clearing}
+              style={{
+                font: 'inherit', cursor: clearing ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 7,
+                height: 32, padding: '0 13px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                border: `1px solid ${confirmClear ? 'var(--neg)' : 'var(--border-2)'}`,
+                background: confirmClear ? 'var(--neg-wash)' : 'transparent',
+                color: confirmClear ? 'var(--neg)' : 'var(--text-2)', opacity: clearing ? 0.6 : 1,
+              }}
+            >
+              <Icon name="flag" size={12} />
+              {clearing ? 'Clearing…' : confirmClear ? 'Click again to confirm — deletes all imported data' : 'Clear all data'}
+            </button>
+            {confirmClear && !clearing && (
+              <button
+                onClick={() => setConfirmClear(false)}
+                style={{ font: 'inherit', cursor: 'pointer', border: 0, background: 'transparent', color: 'var(--text-3)', fontSize: 12, fontWeight: 600 }}
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }

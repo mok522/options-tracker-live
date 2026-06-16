@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Trade } from '@/types/trade';
 import { importTrades } from '@/actions/upsertTrades';
+import { clearAllData } from '@/actions/clearData';
 import { Topbar } from '@/components/layout/Topbar';
 import { DashboardView } from '@/components/dashboard/DashboardView';
 import { AnalyticsView } from '@/components/analytics/AnalyticsView';
@@ -46,12 +47,19 @@ export function TrackerApp({ initialTrades = [] }: { initialTrades?: Trade[] }) 
     setTab('Dashboard');
   };
 
+  const onClear = async () => {
+    await clearAllData();
+    setTrades([]);
+    setLastImport('');
+    router.refresh();
+  };
+
   const view = () => {
     switch (tab) {
       case 'Analytics':    return <AnalyticsView trades={trades} />;
       case 'Trades':       return <TradesView trades={trades} />;
       case 'Tax Exposure': return <TaxView trades={trades} />;
-      case 'Import':       return <ImportView onImport={onImport} lastImport={lastImport} />;
+      case 'Import':       return <ImportView onImport={onImport} onClear={onClear} hasData={trades.length > 0} lastImport={lastImport} />;
       default:             return <DashboardView trades={trades} setTab={(t) => setTab(t as Tab)} />;
     }
   };
