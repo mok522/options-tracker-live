@@ -7,6 +7,7 @@ export interface Trade {
   strike: string;
   exp: string;
   fill: number;
+  optType?: string; // 'CALL' | 'PUT' | '' — drives structural strategy naming
   comm?: number | null;
   pl: number;
   status: 'Open' | 'Closed' | 'Expired' | 'Assigned';

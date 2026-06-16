@@ -5,10 +5,11 @@ const S1256_SYMS = ['SPX', 'NDX', 'RUT', 'SPXW', 'XSP', 'VIX'];
 const FIELD_SYNS: Record<string, string[]> = {
   ExecTime: ['exec time', 'execution time'],
   Symbol:   ['symbol', 'underlying', 'ticker', 'instrument'],
-  Strategy: ['strategy', 'spread', 'description', 'strat', 'type'],  // spread before type
+  Strategy: ['strategy', 'spread', 'description', 'strat'],
   Side:     ['side', 'action', 'buy/sell', 'b/s'],
   Qty:      ['qty', 'quantity', 'contracts'],
   Strike:   ['strike', 'strikes'],
+  OptType:  ['type', 'call/put', 'put/call', 'c/p', 'option type'],
   Exp:      ['exp', 'expiration', 'expiry', 'exp date', 'expdate'],
   Fill:     ['fill', 'fill price', 'price', 'net price', 'trade price', 'avg price'],
   'P&L':    ['p/l', 'pnl', 'p&l', 'realized p/l', 'realized', 'gain/loss', 'profit', 'net p/l'],
@@ -112,22 +113,40 @@ function parseExpDate(exp: string): Date | null {
   return new Date(yr, mon, day);
 }
 
+// Single-leg directional strategy from the position's OPENING side + option type.
+// Returns null when the option type is unknown (caller falls back to CSV label).
+function classifySingle(openingSide: 'Buy' | 'Sell', optType: string): string | null {
+  const isCall = optType === 'CALL';
+  const isPut = optType === 'PUT';
+  if (!isCall && !isPut) return null;
+  if (openingSide === 'Buy') return isCall ? 'Long Call' : 'Long Put';
+  return isCall ? 'Short Call' : 'Short Put';
+}
+
 function rowsToTrades(dataRows: string[][], map: Record<string, number>): Trade[] {
   const num = (v: string) => { const n = parseFloat(String(v).replace(/[$,+\s]/g, '')); return isNaN(n) ? 0 : n; };
   return dataRows.map((r) => {
     const get = (f: string) => (map[f] != null && map[f] !== -1 ? (r[map[f]] ?? '') : '');
-    const side = (get('Side') || 'Sell').trim();
+    const side: 'Buy' | 'Sell' = (get('Side') || 'Sell').trim().toLowerCase().startsWith('b') ? 'Buy' : 'Sell';
+    const status = parseStatus(get('Status'));
+    const rawType = get('OptType').trim().toUpperCase();
+    const optType = rawType.startsWith('C') ? 'CALL' : rawType.startsWith('P') ? 'PUT' : '';
+    // The displayed strategy is per-position directional. For a closing leg the
+    // row's side is the close side, so invert it to recover the opening direction.
+    const openingSide: 'Buy' | 'Sell' = status === 'Open' ? side : side === 'Buy' ? 'Sell' : 'Buy';
+    const csvStrat = (get('Strategy') || '').trim() || '—';
     return {
       sym:    (get('Symbol') || '').trim().toUpperCase(),
-      strat:  (get('Strategy') || '').trim() || '—',
-      side:   (side.toLowerCase().startsWith('b') ? 'Buy' : 'Sell') as 'Buy' | 'Sell',
+      strat:  classifySingle(openingSide, optType) ?? csvStrat,
+      side,
       qty:    Math.abs(num(get('Qty'))) || 1,
       strike: (get('Strike') || '').trim(),
+      optType,
       exp:    (get('Exp') || '').trim(),
       fill:   num(get('Fill')),
       comm:   map['Comm'] !== -1 ? num(get('Comm')) : null,
       pl:     num(get('P&L')),
-      status: parseStatus(get('Status')),
+      status,
       date:   parseExecDate(get('ExecTime')),
     };
   }).filter((t) => t.sym && /^[A-Z]{1,6}$/.test(t.sym) && t.exp);
@@ -146,7 +165,7 @@ function buildPositions(ordered: Trade[]): Trade[] {
   const results: Trade[] = [];
 
   for (const leg of ordered) {
-    const key = `${leg.sym}|${leg.exp}|${leg.strike}`;
+    const key = `${leg.sym}|${leg.exp}|${leg.strike}|${leg.optType ?? ''}`;
 
     if (leg.status === 'Open') {
       const q = openQueues.get(key) ?? [];
@@ -252,7 +271,7 @@ export interface PersistedLeg extends Trade {
 // Stable identity for a raw leg, used to dedupe across re-imports / overlapping
 // date ranges. Date is day-level (TOS exec time-of-day is dropped on parse).
 export function legKey(t: Trade): string {
-  return [t.date ?? '', t.sym, t.exp, t.strike, t.side, t.qty, t.fill, t.status].join('|');
+  return [t.date ?? '', t.sym, t.exp, t.strike, t.optType ?? '', t.side, t.qty, t.fill, t.status].join('|');
 }
 
 // Recompute every position from the UNION of all persisted legs. This is what
