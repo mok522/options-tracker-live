@@ -99,7 +99,13 @@ Trade {
 - Column matching via alias map — handles ThinkOrSwim naming variations
 - Key column aliases mapped: Exec Time, Spread, Side, Qty, Pos Effect, Symbol, Exp, Strike, Type, Price, Net Liq, Cost, Commissions
 - Deduplication on every import — safe to re-import the same file
-- Strategy detection priority: spread description string → option type + side
+- Strategy naming is structural per-position: `Trade.strat` is derived in
+  `rowsToTrades` from the option `Type` column + the position's OPENING side
+  (`classifySingle` → Long/Short Call/Put). Closing legs invert their side to
+  recover the opening direction. The TOS `Spread` column (SINGLE/DIAGONAL/…) is
+  only a fallback when the option type is absent (e.g. the sample CSV, which
+  already carries explicit strategy names). Each leg is tracked as its own
+  single-option position, so labels are directional rather than multi-leg.
 
 ## ThinkOrSwim export path
 Monitor → Activity & Positions → Account Statement → set date range → Export to CSV
