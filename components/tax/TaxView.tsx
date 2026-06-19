@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { Trade } from '@/types/trade';
 import { Icon } from '@/components/shared/Icon';
 import { fmtUSD, fmtSigned } from '@/lib/formatters';
@@ -30,8 +31,17 @@ const marginalIdx = 3;
 const isS1256 = (t: Trade) => S1256_SYMS.includes(t.sym);
 
 export function TaxView({ trades }: TaxViewProps) {
-  const closed = trades.filter((t) => t.status !== 'Open');
-  const s1256Trades = trades.filter(isS1256);
+  // Calendar years present in the data (realization/execution date), newest first.
+  const years = [...new Set(
+    trades.filter((t) => t.date && t.date.length === 10).map((t) => t.date!.slice(0, 4)),
+  )].sort((a, b) => b.localeCompare(a));
+  const [year, setYear] = useState<string>(() => years[0] ?? 'all');
+
+  // Scope every figure below to the selected calendar year ('all' = no filter).
+  const yearTrades = year === 'all' ? trades : trades.filter((t) => t.date?.slice(0, 4) === year);
+
+  const closed = yearTrades.filter((t) => t.status !== 'Open');
+  const s1256Trades = yearTrades.filter(isS1256);
   const s1256PL = s1256Trades.reduce((s, x) => s + x.pl, 0);
   const nonS1256Closed = closed.filter((t) => !isS1256(t));
   const shortTerm = nonS1256Closed.reduce((s, t) => s + (t.pl > 0 ? t.pl : 0), 0);
@@ -52,9 +62,27 @@ export function TaxView({ trades }: TaxViewProps) {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
         <div>
           <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: '-0.3px' }}>Tax Exposure</div>
-          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>Estimated · tax year 2025 · single filer assumption</div>
+          <div style={{ fontSize: 12, color: 'var(--text-3)', marginTop: 2 }}>
+            Estimated · {year === 'all' ? 'all years' : `tax year ${year}`} · federal · single filer assumption
+          </div>
         </div>
-        <span className="chip" style={{ gap: 6 }}><Icon name="shield" size={13} style={{ color: 'var(--accent)' }} /> Estimates only — not tax advice</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ position: 'relative' }}>
+            <select
+              value={year}
+              onChange={(e) => setYear(e.target.value)}
+              aria-label="Calendar year"
+              style={{ font: 'inherit', fontSize: 12, fontWeight: 500, color: 'var(--text-2)', appearance: 'none', padding: '7px 28px 7px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}
+            >
+              {years.map((y) => <option key={y} value={y}>{y}</option>)}
+              <option value="all">All years</option>
+            </select>
+            <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--text-3)' }}>
+              <Icon name="chevDown" size={14} />
+            </span>
+          </div>
+          <span className="chip" style={{ gap: 6 }}><Icon name="shield" size={13} style={{ color: 'var(--accent)' }} /> Estimates only — not tax advice</span>
+        </div>
       </div>
 
       {/* headline cards */}
