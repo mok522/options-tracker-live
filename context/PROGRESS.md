@@ -66,6 +66,29 @@ written against. Fixed in `lib/schwab/adapter.ts`:
 - **Dashboard "Recent Trades"**: now lists trades **closed in the last 30 days**
   (most recent first) instead of the first 6 rows. `DashboardView.tsx`.
 
+### Open-position analytics — "When to Close" (2026-06-27)
+New decision-support section in the **Analytics** tab, on top of the existing
+realized-trade analytics. Helps decide when to close open option positions.
+- `lib/openAnalytics.ts` — pure `computeOpenAnalytics(trades, quotes)`. Per open
+  leg derives **DTE** (parses `exp` "D MON YY" / ISO), **days held**, **premium**
+  (credit for shorts / debit for longs), and — when a live underlying quote is
+  available — **moneyness** (ITM/OTM) and **signed distance-to-strike %**.
+- **Close signal** heuristic per leg, sorted by urgency: `assignment` (short ITM),
+  `expiring`/`decay` (≤7 DTE), `profit` (long ITM), `manage` (≤21 DTE), `hold`.
+  Falls back to DTE-only when no underlying quote (e.g. index symbols).
+- `components/analytics/AnalyticsView.tsx` — added `OpenPositionsSection` (6 KPI
+  tiles + per-leg "When to Close" table). Fetches live underlying quotes client-
+  side via `getQuotes()` for distinct open symbols (bare ticker + `$SYM.X`).
+  Restructured so the view renders with **open trades only** (realized section now
+  shows an inline note instead of gating the whole page on `closedCount`).
+- **Design compliance**: signal badges use accent/status tokens, never `--pos`/
+  `--neg` (reserved for realized P&L). Premium shown neutral with a Cr/Db tag.
+- **Not included**: true unrealized P&L from live *option* marks — needs OCC-symbol
+  reconstruction (unreliable for index roots, e.g. SPXW vs SPX) and live quote-shape
+  verification. Moneyness/DTE/premium are deterministic and were the actionable core.
+  Verified deterministically against representative positions (assignment/decay/
+  manage/hold + unquoted-index fallback all correct).
+
 ### Activation steps
 1. Add real `SCHWAB_CLIENT_ID` / `SCHWAB_CLIENT_SECRET` to `.env.local`.
 2. `npm run dev` (port 3001) → Import tab → "Connect to Charles Schwab".
@@ -198,7 +221,10 @@ python3 -m pytest tests/test_options_pnl.py -v
 - [ ] Average days held metric
 - [x] Profit factor display (gross wins ÷ gross losses) — live in Dashboard
 - [ ] Export filtered trades to CSV (button wired up but handler not implemented)
-- [ ] Unrealized P&L for open positions (requires manual price entry or market data)
+- [~] Unrealized P&L for open positions — partial: open-position "When to Close"
+      analytics now show live underlying moneyness + distance-to-strike + DTE +
+      premium at risk (2026-06-27). True per-leg unrealized P&L from live option
+      marks still pending (needs OCC-symbol reconstruction).
 - [ ] User-selectable marginal tax bracket (currently hardcoded at 24%)
 - [ ] Max drawdown metric
 - [x] Live ticker quotes in Topbar — live via Schwab `/marketdata/v1/quotes` (2026-06-27)

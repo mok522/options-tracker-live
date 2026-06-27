@@ -18,6 +18,21 @@ All trade data entered through ThinkOrSwim account statement CSV export, no manu
 entry. Chosen to eliminate data-entry errors and match broker records, at the cost
 of manual re-import and no real-time data.
 
+## Full-history sync, not incremental since last_sync_at
+**Decision**: Every sync pages backwards through all available history (up to 6 years, in <364-day windows) and relies on `legKey` dedup to skip already-persisted legs.
+**Rationale**: `last_sync_at` incremental sync was the original approach but caused data gaps: the very first sync set `last_sync_at`, so the second sync only pulled new trades and missed historical data. Full-history paging is idempotent (same legKey = skipped), so there's no cost to re-pulling old windows.
+**Tradeoff**: Slightly more API calls per sync. Schwab's actual history retention (~2 years for this account) bounds the practical cost.
+
+## Schwab adapter: `assetType` field, not `type`
+**Decision**: Discriminate option vs. non-option transferItems using `instrument.assetType === 'OPTION'`, not `instrument.type`.
+**Rationale**: Live Schwab responses use `assetType` to identify the instrument category. `type` on the instrument is a different field (e.g. `"VANILLA"`). The original adapter used `type !== 'OPTION'`, which caused every option leg to be skipped (0 transactions synced).
+**Tradeoff**: None — this is the correct field per live API verification.
+
+## Schwab adapter: commissions as separate CURRENCY transferItems
+**Decision**: Sum all non-OPTION transferItems' `cost` field as the order's total fees, then allocate proportionally to each option leg by contract count.
+**Rationale**: Schwab doesn't embed commissions in the option leg price. Fees arrive as separate `CURRENCY` transferItems with `feeType` values (COMMISSION, SEC_FEE, OPT_REG_FEE, TAF_FEE) and a negative `cost`. This matches the `Trade.comm` convention (leg-total, not per-contract).
+**Tradeoff**: Allocation is proportional (not per-contract-type weighted), which is accurate for single-leg orders and approximate for multi-leg orders with mixed contract counts.
+
 ## Schwab integration: thin adapter, not parallel data model
 **Decision**: Convert Schwab transaction JSON into the existing `Trade` leg shape
 in `lib/schwab/adapter.ts`, then feed the unchanged `importTrades` pipeline.
@@ -38,17 +53,22 @@ read/write `settings`. Proactive refresh avoids mid-request 401s.
 **Tradeoff**: Tokens stored in plaintext. Acceptable for a single-user personal
 app; would need encryption / per-user isolation before any multi-user deployment.
 
-## OAuth callback on fixed port 3001
-**Decision**: `.claude/launch.json` sets `autoPort: false`; the dev server must
-run on 3001 to match the registered `SCHWAB_REDIRECT_URI`.
-**Rationale**: Schwab validates the redirect URI exactly against the app
-registration; a dynamic port would break the callback.
-**Tradeoff**: Port 3001 must be free; preview tooling cannot reassign it.
+## OAuth callback on fixed port 3001 via HTTPS proxy
+**Decision**: Next.js runs HTTP on port 3000; a local Node HTTPS proxy (`scripts/https-proxy.mjs`) listens on 3001 and forwards traffic. The Schwab redirect URI is registered as `https://localhost:3001/api/auth/callback`.
+**Rationale**: Schwab requires HTTPS for the OAuth redirect. `next dev --experimental-https` was tried first but hangs on this machine (TLS handshakes complete but no response bytes are ever returned — confirmed a local Turbopack bug). The proxy workaround adds no new dependencies (Node built-in `https`/`net` modules) and is transparent to the app.
+**Tradeoff**: Two terminal processes required in dev. Port 3001 must be free. `next.config.ts` needs `allowedDevOrigins` to prevent cross-origin HMR blocks across the proxy.
 
-## Storage: browser key-value persistence (no server)
-**Decision**: Use `window.storage` (artifact storage API) with key `tos-trades`. Personal data, not shared.
-**Rationale**: Zero infrastructure, zero cost, works offline, no login required, data stays private on the user's device.
-**Tradeoff**: Data tied to the browser/session. No cross-device sync. Clearing browser data loses trades. Mitigated by: re-import is always possible from the original CSV.
+## Schwab API: encrypted account hash required
+**Decision**: Store and use `hashValue` (from `/trader/v1/accounts/accountNumbers`) for all `/trader/v1/accounts/{id}/transactions` API calls, not the plain account number.
+**Rationale**: Schwab's Trader API requires the encrypted hash in URL paths — using the plain account number returns a 400/404. `resolveAccount()` in `lib/schwab/accounts.ts` fetches the hash on first connect and caches it in `settings['schwab_account_hash']`.
+**Tradeoff**: Extra API call on first sync (amortized by caching). `clearTokens()` must also clear the cached hash.
+
+## Storage: Turso (libSQL) + Drizzle ORM
+**Decision**: Persist all data (trades, raw legs, settings) in a Turso cloud database via Drizzle ORM server actions.
+**Rationale**: Replaced earlier browser-only `localStorage` approach (see superseded note). Turso is serverless, cheap, and allows the same data to survive browser clears and be accessed from Next.js server actions — required once the Schwab token and account hash needed secure server-side storage.
+**Tradeoff**: Requires TURSO_DATABASE_URL + TURSO_AUTH_TOKEN env vars. Data lives on a third-party service.
+
+_Superseded (2026-06-08 original): `window.storage` / `localStorage` with key `tos-trades`. Replaced because server actions cannot access browser storage._
 
 ## No Chart.js — custom SVG charts
 **Decision**: All charts are hand-built SVG components in `charts.jsx`, not Chart.js or any chart library.
