@@ -62,6 +62,32 @@ export function resolveUnderlying(sym: string, quotes: QuotesMap): number | null
   return q && q.last > 0 ? q.last : null;
 }
 
+// Date → "YYYY-MM-DD" (local), for stable position-key matching.
+function toYMD(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Current per-contract mark for a held option, keyed for matching open legs to
+// the Schwab account-positions response. Built identically on both sides.
+export interface MarkData {
+  mark: number;   // per-contract current price
+  openPl: number; // Schwab's own open P&L for the position (fallback / cross-check)
+}
+export type MarksMap = Record<string, MarkData>;
+
+// Stable key matching an open leg to its Schwab position. expYMD is the
+// expiration as "YYYY-MM-DD"; strike is the numeric strike.
+export function positionKey(
+  sym: string,
+  strike: number | null,
+  expYMD: string | null,
+  kind: 'CALL' | 'PUT' | null,
+  isShort: boolean,
+): string | null {
+  if (strike == null || !expYMD || !kind) return null;
+  return `${sym.toUpperCase()}|${strike}|${expYMD}|${kind}|${isShort ? 'short' : 'long'}`;
+}
+
 export type CloseSignal = 'assignment' | 'profit' | 'expiring' | 'decay' | 'manage' | 'hold' | 'unknown';
 
 export interface OpenRow {
@@ -75,6 +101,9 @@ export interface OpenRow {
   underlying: number | null;   // live last price
   itm: boolean | null;         // in-the-money (null when no quote)
   distancePct: number | null;  // signed fraction of underlying: + = OTM cushion, − = ITM depth
+  mark: number | null;         // live per-contract option mark
+  unrealizedPl: number | null; // gross mark-to-market P&L since open ($)
+  pctCaptured: number | null;  // shorts only: fraction of collected premium captured (0..1)
   signal: CloseSignal;
   signalLabel: string;
 }
@@ -105,9 +134,11 @@ export interface OpenAnalyticsResult {
   quotedCount: number;    // positions with a resolved underlying
   avgDte: number | null;
   maxDaysHeld: number | null;
+  totalUnrealizedPl: number | null; // sum of mark-to-market P&L (null when no marks)
+  pnlQuotedCount: number; // positions with a resolved option mark
 }
 
-export function computeOpenAnalytics(trades: Trade[], quotes: QuotesMap = {}): OpenAnalyticsResult {
+export function computeOpenAnalytics(trades: Trade[], quotes: QuotesMap = {}, marks: MarksMap = {}): OpenAnalyticsResult {
   const today = todayMidnight();
   const open = trades.filter((t) => t.status === 'Open');
 
@@ -136,9 +167,23 @@ export function computeOpenAnalytics(trades: Trade[], quotes: QuotesMap = {}): O
       itm = otmAmount < 0;
     }
 
+    // Unrealized P&L since open (gross mark-to-market) from the live option mark.
+    const expYMD = expDate ? toYMD(expDate) : null;
+    const key = positionKey(t.sym, strikeNum, expYMD, kind, isShort);
+    const md = key ? marks[key] : undefined;
+    let mark: number | null = null;
+    let unrealizedPl: number | null = null;
+    let pctCaptured: number | null = null;
+    if (md && md.mark >= 0) {
+      mark = md.mark;
+      const entry = Math.abs(t.fill);
+      unrealizedPl = Math.round((isShort ? entry - mark : mark - entry) * t.qty * 100);
+      if (isShort && entry > 0) pctCaptured = (entry - mark) / entry;
+    }
+
     const { signal, label } = classify(isShort, dte, itm);
 
-    return { trade: t, isShort, kind, strikeNum, dte, daysHeld, premium, underlying, itm, distancePct, signal, signalLabel: label };
+    return { trade: t, isShort, kind, strikeNum, dte, daysHeld, premium, underlying, itm, distancePct, mark, unrealizedPl, pctCaptured, signal, signalLabel: label };
   });
 
   // Sort by urgency: assignment risk first, then soonest expiry, then largest premium.
@@ -154,6 +199,7 @@ export function computeOpenAnalytics(trades: Trade[], quotes: QuotesMap = {}): O
   const debitPremium = rows.filter((r) => !r.isShort).reduce((s, r) => s + Math.abs(r.premium), 0);
   const dted = rows.map((r) => r.dte).filter((d): d is number => d != null);
   const held = rows.map((r) => r.daysHeld).filter((d): d is number => d != null);
+  const pnls = rows.map((r) => r.unrealizedPl).filter((p): p is number => p != null);
 
   return {
     rows,
@@ -166,5 +212,7 @@ export function computeOpenAnalytics(trades: Trade[], quotes: QuotesMap = {}): O
     quotedCount: rows.filter((r) => r.underlying != null).length,
     avgDte: dted.length ? Math.round(dted.reduce((s, d) => s + d, 0) / dted.length) : null,
     maxDaysHeld: held.length ? Math.max(...held) : null,
+    totalUnrealizedPl: pnls.length ? pnls.reduce((s, p) => s + p, 0) : null,
+    pnlQuotedCount: pnls.length,
   };
 }

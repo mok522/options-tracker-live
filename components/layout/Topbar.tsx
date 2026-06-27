@@ -4,7 +4,7 @@ import { Logo } from '@/components/shared/Logo';
 import { Icon } from '@/components/shared/Icon';
 import type { QuotesMap } from '@/lib/schwab/quotes';
 
-type Tab = 'Dashboard' | 'Analytics' | 'Trades' | 'Tax Exposure' | 'Import';
+type Tab = 'Dashboard' | 'Open Positions' | 'Analytics' | 'Trades' | 'Tax Exposure' | 'Import';
 
 interface TopbarProps {
   dark: boolean;
@@ -15,7 +15,7 @@ interface TopbarProps {
   quotes: QuotesMap;
 }
 
-const TABS: Tab[] = ['Dashboard', 'Analytics', 'Trades', 'Tax Exposure', 'Import'];
+const TABS: Tab[] = ['Dashboard', 'Open Positions', 'Analytics', 'Trades', 'Tax Exposure', 'Import'];
 
 function fmt(n: number, decimals = 2): string {
   return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });

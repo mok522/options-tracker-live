@@ -66,9 +66,29 @@ written against. Fixed in `lib/schwab/adapter.ts`:
 - **Dashboard "Recent Trades"**: now lists trades **closed in the last 30 days**
   (most recent first) instead of the first 6 rows. `DashboardView.tsx`.
 
-### Open-position analytics — "When to Close" (2026-06-27)
-New decision-support section in the **Analytics** tab, on top of the existing
-realized-trade analytics. Helps decide when to close open option positions.
+### Open Positions tab + unrealized P&L (2026-06-27, updated)
+Promoted to its own top-level **"Open Positions"** tab (after Dashboard) so it can
+grow independently; the **Analytics** tab is realized-only again. Adds live
+**P&L Since Open** per leg.
+- `components/positions/OpenPositionsView.tsx` — the full view (was a section in
+  AnalyticsView). Fetches underlying quotes (`getQuotes`) **and** option marks
+  (`getOpenPositionMarks`) on mount.
+- `lib/schwab/positions.ts` — `fetchOpenOptionMarks()` reads the Schwab
+  **account-positions endpoint** (`/trader/v1/accounts/{hash}?fields=positions`),
+  derives each held option's per-contract **mark** = `|marketValue| / (qty×100)`
+  (no OCC-symbol reconstruction), keyed by `positionKey` for leg matching.
+- `actions/fetchPositions.ts` — `getOpenPositionMarks()` (isConnected guard, →{}).
+- `lib/openAnalytics.ts` — `positionKey()` (shared leg↔position match key) +
+  `computeOpenAnalytics(trades, quotes, marks)` adds `unrealizedPl` (gross
+  mark-to-market: shorts `(entry−mark)×qty×100`, longs `(mark−entry)×qty×100`),
+  `pctCaptured` (shorts), and `totalUnrealizedPl`. New **Unrealized P&L** tile +
+  **P&L Since Open** / **% Cap.** columns (pos/neg correct here — real P&L).
+- Marks are **live only during market hours** (else last close); any missing field
+  or unmatched leg degrades to `—`, never a wrong number.
+- Tab wired in both `Topbar.tsx` and `TrackerApp.tsx` (the `Tab` union is duplicated).
+
+### Open-position analytics — "When to Close" (2026-06-27, original)
+Decision-support analytics for when to close open option positions.
 - `lib/openAnalytics.ts` — pure `computeOpenAnalytics(trades, quotes)`. Per open
   leg derives **DTE** (parses `exp` "D MON YY" / ISO), **days held**, **premium**
   (credit for shorts / debit for longs), and — when a live underlying quote is
@@ -221,10 +241,10 @@ python3 -m pytest tests/test_options_pnl.py -v
 - [ ] Average days held metric
 - [x] Profit factor display (gross wins ÷ gross losses) — live in Dashboard
 - [ ] Export filtered trades to CSV (button wired up but handler not implemented)
-- [~] Unrealized P&L for open positions — partial: open-position "When to Close"
-      analytics now show live underlying moneyness + distance-to-strike + DTE +
-      premium at risk (2026-06-27). True per-leg unrealized P&L from live option
-      marks still pending (needs OCC-symbol reconstruction).
+- [x] Unrealized P&L for open positions — live in the **Open Positions** tab
+      (2026-06-27): gross mark-to-market P&L Since Open per leg + total, sourced
+      from the Schwab account-positions endpoint, plus moneyness/DTE/premium.
+      (Marks are live during market hours only; commissions excluded.)
 - [ ] User-selectable marginal tax bracket (currently hardcoded at 24%)
 - [ ] Max drawdown metric
 - [x] Live ticker quotes in Topbar — live via Schwab `/marketdata/v1/quotes` (2026-06-27)

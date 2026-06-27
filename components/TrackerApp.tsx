@@ -7,13 +7,14 @@ import { clearAllData } from '@/actions/clearData';
 import { getQuotes } from '@/actions/fetchQuotes';
 import { Topbar } from '@/components/layout/Topbar';
 import { DashboardView } from '@/components/dashboard/DashboardView';
+import { OpenPositionsView } from '@/components/positions/OpenPositionsView';
 import { AnalyticsView } from '@/components/analytics/AnalyticsView';
 import { TradesView } from '@/components/trades/TradesView';
 import { TaxView } from '@/components/tax/TaxView';
 import { ImportView } from '@/components/import/ImportView';
 import type { QuotesMap } from '@/lib/schwab/quotes';
 
-type Tab = 'Dashboard' | 'Analytics' | 'Trades' | 'Tax Exposure' | 'Import';
+type Tab = 'Dashboard' | 'Open Positions' | 'Analytics' | 'Trades' | 'Tax Exposure' | 'Import';
 
 const TOPBAR_SYMBOLS = ['$SPX.X', '$NDX.X', '$VIX.X', 'SPX', 'NDX', 'VIX'];
 const QUOTE_INTERVAL_MS = 60_000;
@@ -79,6 +80,7 @@ export function TrackerApp({ initialTrades = [], isConnected: initialConnected, 
 
   const view = () => {
     switch (tab) {
+      case 'Open Positions': return <OpenPositionsView trades={trades} />;
       case 'Analytics':    return <AnalyticsView trades={trades} />;
       case 'Trades':       return <TradesView trades={trades} />;
       case 'Tax Exposure': return <TaxView trades={trades} />;

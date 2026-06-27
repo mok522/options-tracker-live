@@ -35,9 +35,10 @@ App (tracker-app.jsx)
 │   ├── Panel > WinRateChart   # Win rate by symbol (SVG)
 │   ├── Panel > CumulativeLine # Cumulative P&L line (SVG)
 │   └── Panel > TradesTable    # Recent trades strip (last 5)
-├── AnalyticsView              # Open-position "When to Close" + realized perf analytics
-│   ├── OpenPositionsSection   # DTE / premium / live moneyness / close-signal per open leg
-│   └── (realized)             # drawdown, expectancy, long-vs-short, streaks, per-strategy
+├── OpenPositionsView          # "When to Close" — own tab; DTE/premium/moneyness/close-signal
+│   └── + P&L Since Open        #   live mark-to-market unrealized P&L per leg + total
+├── AnalyticsView              # Realized performance: drawdown, expectancy, long-vs-short,
+│                              #   streaks, per-strategy (closed trades only)
 ├── TradesView (views.jsx)     # Full filterable trades table
 ├── TaxView (views.jsx)        # Tax exposure breakdown
 └── ImportView (views.jsx)     # Schwab connection hub (Connect / Sync / Disconnect)
@@ -93,11 +94,13 @@ lib/schwab/
 ├── adapter.ts        # adaptTransactions() — Schwab JSON → Trade[]
 ├── accounts.ts       # resolveAccount() — fetches + caches accountNumber + hashValue
 ├── http.ts           # fetchWithTimeout() — 20s AbortController timeout wrapper
-└── quotes.ts         # fetchQuotes() — /marketdata/v1/quotes → { last, change, changePct }
+├── quotes.ts         # fetchQuotes() — /marketdata/v1/quotes → { last, change, changePct }
+└── positions.ts      # fetchOpenOptionMarks() — /accounts/{hash}?fields=positions → MarksMap
 app/api/auth/schwab/route.ts     # OAuth initiate
 app/api/auth/callback/route.ts   # OAuth callback / token exchange + account hash cache
 actions/syncSchwab.ts            # orchestrates full-history paged sync
 actions/fetchQuotes.ts           # live quotes (returns {} if disconnected)
+actions/fetchPositions.ts        # live option marks for open positions (returns {} if disconnected)
 actions/disconnectSchwab.ts      # clearTokens()
 actions/testConnection.ts        # lightweight live API check (/accounts/accountNumbers)
 scripts/https-proxy.mjs          # local HTTPS→HTTP proxy (Node built-ins, port 3001→3000)
@@ -111,6 +114,17 @@ render `—`.
 
 **Known gap:** `$SPX.X` / `$NDX.X` / `$VIX.X` quote key mapping is unverified against
 live `/marketdata/v1/quotes` responses — topbar indices may still show `—` until confirmed.
+
+### Open-position marks & unrealized P&L
+The **Open Positions** tab fetches live option marks via `getOpenPositionMarks()`
+(→ `fetchOpenOptionMarks()`), which reads the Schwab **account-positions endpoint**
+(`/trader/v1/accounts/{hash}?fields=positions`) and derives each held option's
+per-contract mark = `|marketValue| / (qty×100)` — no OCC-symbol reconstruction.
+Marks are keyed by `positionKey(sym, strike, YYYY-MM-DD, CALL/PUT, short)` so open
+legs match their Schwab position; `computeOpenAnalytics` then computes gross
+mark-to-market **P&L Since Open**. Marks are live only during market hours (else
+last close); unmatched legs or missing fields render `—`. The positions response
+shape is handled defensively — a field mismatch degrades to "no mark", never throws.
 
 ### Local HTTPS proxy (dev only)
 `next dev --experimental-https` is broken on this machine (accepts TLS but never
