@@ -36,9 +36,10 @@ export function MonthlyBars({ width = 460, height = 200, data = sampleMonthly }:
   const maxV = Math.max(...vals, 0), minV = Math.min(...vals, 0);
   const ticks = niceTicks(minV, maxV, 4);
   const lo = ticks[0], hi = ticks[ticks.length - 1];
-  const yv = (v: number) => padT + ih - ((v - lo) / (hi - lo)) * ih;
+  const span = (hi - lo) || 1; // flat data → avoid divide-by-zero
+  const yv = (v: number) => padT + ih - ((v - lo) / span) * ih;
   const zeroY = yv(0);
-  const bw = iw / data.length;
+  const bw = iw / (data.length || 1);
   const barW = Math.min(26, bw * 0.56);
   const lastIdx = data.length - 1;
 

@@ -48,8 +48,10 @@ export function CumulativeLine({ width = 480, height = 220, data = sampleCumulat
   const maxV = Math.max(...data), minV = Math.min(...data, 0);
   const ticks = niceTicks(minV, maxV, 4);
   const lo = ticks[0], hi = ticks[ticks.length - 1];
-  const xv = (i: number) => padL + (i / (data.length - 1)) * iw;
-  const yv = (v: number) => padT + ih - ((v - lo) / (hi - lo)) * ih;
+  const span = (hi - lo) || 1; // flat data → avoid divide-by-zero
+  const xDenom = (data.length - 1) || 1; // single point → avoid divide-by-zero
+  const xv = (i: number) => padL + (i / xDenom) * iw;
+  const yv = (v: number) => padT + ih - ((v - lo) / span) * ih;
   const pts: [number, number][] = data.map((v, i) => [xv(i), yv(v)]);
   const line = smoothPath(pts);
   const area = `${line} L ${xv(data.length - 1)} ${yv(lo)} L ${xv(0)} ${yv(lo)} Z`;

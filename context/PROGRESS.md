@@ -37,12 +37,27 @@ quotes + connection dot, removed hardcoded tickers), `components/TrackerApp.tsx`
 `.claude/launch.json` (`autoPort: false` — port 3001 fixed for OAuth callback).
 
 ### Verification status
-- `next build` passes clean (TypeScript compiles, all routes generate).
-- End-to-end OAuth + sync **not yet exercised** — requires real `SCHWAB_CLIENT_ID`
-  / `SCHWAB_CLIENT_SECRET` in `.env.local` (placeholders committed empty).
-- Schwab transaction/quote JSON field mappings in `adapter.ts` were written
-  against documented shapes; verify exact field names/signs against real API
-  responses on first live sync (especially commission sign and `$SPX.X` quote keys).
+- `next build` / `tsc --noEmit` pass clean.
+- **OAuth + sync exercised end-to-end against the live Schwab API (2026-06-27).**
+  Connection, account-hash resolution, and full-history sync confirmed working;
+  adapter verified producing correct legs (51 tx → 51 legs) from real responses.
+
+### Live-data corrections (2026-06-27, after first real sync)
+Real Schwab responses differed from the documented shapes the adapter was first
+written against. Fixed in `lib/schwab/adapter.ts`:
+- **Instrument discriminator is `assetType`, not `type`** (`type` is e.g.
+  "VANILLA"). The old `instrument.type !== 'OPTION'` check skipped every leg →
+  "0 transactions". This was the core "no data" bug.
+- **Commissions/fees are separate `CURRENCY` transferItems** (`feeType`:
+  COMMISSION / SEC_FEE / OPT_REG_FEE / TAF_FEE, negative `cost`), not embedded in
+  the option price. Adapter now sums them per order and allocates to each leg by
+  contract share; `comm` is the leg **total** (matches the app convention), not
+  per-contract as before.
+- **Historical sync**: `syncSchwab` now pages backwards in <1-year windows
+  (Schwab caps each request to <1yr) up to 6 years, instead of a single 365-day
+  window since last sync. Pulls full available history; dedup keeps it idempotent.
+- **Chart NaN guards**: MiniSpark/MonthlyBars/CumulativeLine divided by zero on
+  sparse/flat real data (single point, or all-equal values). Guarded.
 
 ### Activation steps
 1. Add real `SCHWAB_CLIENT_ID` / `SCHWAB_CLIENT_SECRET` to `.env.local`.
@@ -182,8 +197,11 @@ python3 -m pytest tests/test_options_pnl.py -v
 - [x] Live ticker quotes in Topbar — live via Schwab `/marketdata/v1/quotes` (2026-06-27)
 
 ## Known gaps / issues
-- Schwab OAuth + sync not yet exercised end-to-end (needs real credentials)
-- `adapter.ts` field mappings unverified against live API responses (commission sign, `$SPX.X` keys)
+- `quotes.ts` `$SPX.X` quote keys still unverified against live `/marketdata` responses
+- Schwab API only retains ~limited transaction history; data older than its
+  retention window is unavailable via API (would need CSV statement import, removed)
+- Same-day identical fills (same sym/strike/exp/side/qty/fill) merge under `legKey`
+  (date-based, no time) → rare under-count; could fold in Schwab `activityId` for precision
 - Open position unrealized P&L not yet wired to live quotes (quotes feed exists; per-position display TODO)
 - Background/auto sync not implemented — manual "Sync Now" only (token refresh is proactive but per-request)
 - `daysHeld` field not tracked in flat Trade type — no holding-period-based LT gains

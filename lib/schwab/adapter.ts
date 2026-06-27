@@ -1,26 +1,27 @@
 import type { Trade } from '@/types/trade';
 
-// Schwab Trader API transaction shapes (relevant fields only)
+// Schwab Trader API transaction shapes (verified against live responses).
 export interface SchwabInstrument {
-  symbol: string;           // OCC: "AAPL  250620C00200000"
-  underlyingSymbol: string; // "AAPL"
+  assetType: string;         // "OPTION" | "CURRENCY" | "EQUITY" | ... (NOT `type`)
+  symbol: string;            // OCC: "TEM   270319C00050000"
+  underlyingSymbol?: string; // "TEM"
   putCall?: 'CALL' | 'PUT';
   strikePrice?: number;
-  expirationDate?: string;  // "2025-06-20T00:00:00+0000"
-  type: string;             // "OPTION" | "EQUITY" | etc.
+  expirationDate?: string;   // "2027-03-19T04:00:00+0000"
 }
 
 export interface SchwabTransferItem {
   instrument: SchwabInstrument;
-  amount: number;        // negative = sell (for options), positive = buy
-  price: number;         // per-contract premium (e.g. 5.00 for a $5 option)
-  cost?: number;
+  amount: number;        // options: signed contracts (neg = sell). currency: fee magnitude
+  price?: number;        // per-contract premium (option legs only)
+  cost?: number;         // signed dollar amount; fee items carry the (negative) charge
+  feeType?: string;      // present on CURRENCY fee rows: COMMISSION | SEC_FEE | OPT_REG_FEE | TAF_FEE
   positionEffect?: 'OPENING' | 'CLOSING' | 'AUTOMATIC' | 'AUTOMATIC_EXERCISE' | 'AUTOMATIC_ASSIGNMENT';
 }
 
 export interface SchwabTransaction {
   activityId?: number;
-  time: string;          // "2025-06-15T14:30:00+0000"
+  time: string;          // "2026-06-26T17:53:21+0000"
   type: string;          // "TRADE" | "RECEIVE_AND_DELIVER" | etc.
   description?: string;
   netAmount: number;
@@ -62,53 +63,67 @@ export function adaptTransactions(transactions: SchwabTransaction[]): Trade[] {
   for (const tx of transactions) {
     if (tx.type !== 'TRADE') continue;
 
-    for (const item of tx.transferItems) {
-      const { instrument } = item;
-      if (instrument.type !== 'OPTION') continue;
-      if (!instrument.putCall || instrument.strikePrice == null || !instrument.expirationDate) continue;
+    const items = tx.transferItems ?? [];
 
+    // Option legs in this order/transaction.
+    const optionItems = items.filter(
+      (i) =>
+        i.instrument?.assetType === 'OPTION' &&
+        i.instrument.putCall &&
+        i.instrument.strikePrice != null &&
+        i.instrument.expirationDate &&
+        i.instrument.underlyingSymbol
+    );
+    if (optionItems.length === 0) continue;
+
+    // Fees/commission are separate CURRENCY line items (COMMISSION, SEC_FEE,
+    // OPT_REG_FEE, TAF_FEE) carrying a negative `cost`. Total them for the
+    // whole order, then allocate to each leg by its share of contracts.
+    const totalFees = items
+      .filter((i) => i.instrument?.assetType !== 'OPTION')
+      .reduce((s, i) => s + (i.cost ?? 0), 0);
+    const totalContracts = optionItems.reduce((s, i) => s + Math.abs(i.amount), 0);
+
+    for (const item of optionItems) {
+      const inst = item.instrument;
       const qty = Math.abs(item.amount);
       if (qty === 0) continue;
 
       // amount < 0 → selling contracts (credit), amount > 0 → buying contracts (debit)
       const side: 'Buy' | 'Sell' = item.amount < 0 ? 'Sell' : 'Buy';
 
-      // positionEffect: OPENING → 'Open', CLOSING/AUTOMATIC* → 'Closed'/'Expired'
+      // positionEffect: OPENING → 'Open', CLOSING → 'Closed', AUTOMATIC* → 'Expired'
       const effect = item.positionEffect ?? 'OPENING';
       let status: Trade['status'];
       if (effect === 'OPENING') {
         status = 'Open';
-      } else if (effect === 'AUTOMATIC' || effect === 'AUTOMATIC_EXERCISE' || effect === 'AUTOMATIC_ASSIGNMENT') {
+      } else if (effect.startsWith('AUTOMATIC')) {
         status = 'Expired';
       } else {
         status = 'Closed';
       }
 
-      const fill = Math.abs(item.price);
-      const optType = instrument.putCall;
-      const exp = fmtExp(instrument.expirationDate);
+      const fill = Math.abs(item.price ?? 0);
+      const optType = inst.putCall!;
+      const exp = fmtExp(inst.expirationDate!);
 
-      // Commission: gross dollar value vs net amount received/paid
-      // Sell: gross = +fill * qty * 100; netAmount is positive; commission is negative delta
-      // Buy:  gross = -fill * qty * 100; netAmount is negative; commission is negative delta
-      const grossSigned = side === 'Sell' ? fill * qty * 100 : -(fill * qty * 100);
-      const totalComm = tx.netAmount - grossSigned; // always ≤ 0 (a cost)
-      const commPerContract = qty > 0 ? totalComm / qty : 0;
+      // Leg-total commission (negative = charge), this leg's share of order fees.
+      const legComm = totalContracts > 0 ? (totalFees * qty) / totalContracts : 0;
 
       // Opening side used for strategy naming (closing legs invert)
       const openingSide: 'Buy' | 'Sell' = status === 'Open' ? side : side === 'Buy' ? 'Sell' : 'Buy';
       const strat = strategyName(openingSide, optType);
 
       legs.push({
-        sym: instrument.underlyingSymbol.toUpperCase(),
+        sym: inst.underlyingSymbol!.toUpperCase(),
         strat,
         side,
         qty,
-        strike: fmtStrike(instrument.strikePrice, optType),
+        strike: fmtStrike(inst.strikePrice!, optType),
         exp,
         fill,
         optType,
-        comm: commPerContract !== 0 ? commPerContract : null,
+        comm: legComm !== 0 ? Math.round(legComm * 100) / 100 : null,
         pl: 0,
         status,
         date: fmtDate(tx.time),
