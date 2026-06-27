@@ -24,13 +24,22 @@ function StatCard({ label, value, tone, hint }: { label: string; value: string |
 
 const commOf = (t: Trade) => (t.comm != null ? t.comm : -(Math.round((t.qty * 0.66) * 100) / 100));
 
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// Close/realization date for a finished trade; em-dash while still open.
+function fmtCloseDate(t: Trade): string {
+  if (t.status === 'Open' || !t.date) return '—';
+  const [y, m, d] = t.date.split('-').map(Number);
+  if (!y || !m || !d) return '—';
+  return `${MON[m - 1]} ${d} '${String(y).slice(2)}`;
+}
+
 const thStatic: React.CSSProperties = {
   textAlign: 'left', padding: '10px 14px', fontSize: 10.5, fontWeight: 600, color: 'var(--text-3)',
   textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap',
   position: 'sticky', top: 0, background: 'var(--surface)', borderBottom: '1px solid var(--border)',
 };
 
-type SortKey = 'sym' | 'strat' | 'side' | 'qty' | 'exp' | 'fill' | 'pl';
+type SortKey = 'sym' | 'strat' | 'side' | 'qty' | 'exp' | 'fill' | 'pl' | 'date';
 
 export function TradesView({ trades }: TradesViewProps) {
   const [status, setStatus] = useState('All');
@@ -47,7 +56,7 @@ export function TradesView({ trades }: TradesViewProps) {
       (q.trim() === '' || t.sym.toLowerCase().includes(q.trim().toLowerCase())));
     const k = sort.key;
     r = [...r].sort((a, b) => {
-      const av = a[k] as string | number, bv = b[k] as string | number;
+      const av = (a[k] ?? '') as string | number, bv = (b[k] ?? '') as string | number;
       if (typeof av === 'string') {
         return (av.toLowerCase() < (bv as string).toLowerCase() ? -sort.dir : av.toLowerCase() > (bv as string).toLowerCase() ? sort.dir : 0);
       }
@@ -135,6 +144,7 @@ export function TradesView({ trades }: TradesViewProps) {
                 {sortTh('fill', 'Fill', 'right')}
                 <th style={{ ...thStatic, textAlign: 'right' }}>Comm</th>
                 {sortTh('pl', 'P&L', 'right')}
+                {sortTh('date', 'Closed')}
                 <th style={{ ...thStatic, textAlign: 'right' }}>Status</th>
               </tr>
             </thead>
@@ -155,11 +165,12 @@ export function TradesView({ trades }: TradesViewProps) {
                   <td style={{ ...numTd, color: 'var(--text-2)' }}>{fmtNum(t.fill)}</td>
                   <td style={{ ...numTd, color: 'var(--text-3)' }}>{fmtNum(commOf(t))}</td>
                   <td style={{ ...numTd, fontWeight: 700, color: t.pl >= 0 ? 'var(--pos)' : 'var(--neg)' }}>{fmtSigned(t.pl)}</td>
+                  <td style={{ ...td, color: 'var(--text-2)' }}>{fmtCloseDate(t)}</td>
                   <td style={{ ...td, textAlign: 'right' }}><StatusPill status={t.status} /></td>
                 </tr>
               ))}
               {!rows.length && (
-                <tr><td colSpan={10} style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>No trades match your filters.</td></tr>
+                <tr><td colSpan={11} style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>No trades match your filters.</td></tr>
               )}
             </tbody>
           </table>

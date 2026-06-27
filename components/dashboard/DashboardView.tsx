@@ -130,6 +130,16 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
       }));
   }, [closed]);
 
+  // --- Recent Trades: closed in the last 30 days, most recent first ---
+  const recentClosed = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const cutoffStr = cutoff.toISOString().slice(0, 10);
+    return trades
+      .filter((t) => t.status !== 'Open' && t.date && t.date >= cutoffStr)
+      .sort((a, b) => (a.date! < b.date! ? 1 : a.date! > b.date! ? -1 : 0));
+  }, [trades]);
+
   return (
     <div style={{ flex: 1, padding: 13, display: 'flex', flexDirection: 'column', gap: 11, overflow: 'hidden' }}>
       <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '188px minmax(0,1fr) 276px', gap: 11, minHeight: 0 }}>
@@ -198,7 +208,7 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
       {/* recent trades */}
       <Panel
         title="Recent Trades"
-        sub={`${closed.length} closed · ${openCt} open`}
+        sub={`${recentClosed.length} closed · last 30 days`}
         right={
           <button
             onClick={() => setTab('Trades')}
@@ -211,7 +221,13 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
         pad="0 6px 4px"
       >
         <div style={{ height: '100%', overflowY: 'auto' }}>
-          <TradesTable rows={trades.slice(0, 6)} dense />
+          {recentClosed.length ? (
+            <TradesTable rows={recentClosed} dense />
+          ) : (
+            <div style={{ padding: 28, textAlign: 'center', color: 'var(--text-3)', fontSize: 12.5 }}>
+              No trades closed in the last 30 days.
+            </div>
+          )}
         </div>
       </Panel>
     </div>

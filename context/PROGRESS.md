@@ -59,6 +59,13 @@ written against. Fixed in `lib/schwab/adapter.ts`:
 - **Chart NaN guards**: MiniSpark/MonthlyBars/CumulativeLine divided by zero on
   sparse/flat real data (single point, or all-equal values). Guarded.
 
+### UI additions (2026-06-27)
+- **Trades view**: sortable **"Closed"** column showing each finished trade's
+  realization date (`Trade.date` already holds the close date for non-Open
+  trades; `—` while open). `components/trades/TradesView.tsx`.
+- **Dashboard "Recent Trades"**: now lists trades **closed in the last 30 days**
+  (most recent first) instead of the first 6 rows. `DashboardView.tsx`.
+
 ### Activation steps
 1. Add real `SCHWAB_CLIENT_ID` / `SCHWAB_CLIENT_SECRET` to `.env.local`.
 2. `npm run dev` (port 3001) → Import tab → "Connect to Charles Schwab".
