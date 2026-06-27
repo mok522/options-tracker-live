@@ -2,7 +2,7 @@
 _Created from Claude Design output analysis — 2026-06-08_
 
 ## Overview
-Single-page React application. No backend. All persistence via browser storage (key: `tos-trades`). Data enters through CSV import only.
+Single-page React application on Next.js with Turso (libSQL) persistence via server actions. Data enters through a live **Charles Schwab Developer API** integration (OAuth 2.0). CSV import was removed in favor of direct sync (2026-06-27).
 
 ## File structure
 ```
@@ -42,18 +42,55 @@ App (tracker-app.jsx)
 
 ## Data flow
 ```
-ThinkOrSwim CSV export
-  → ImportView (parseTradeCSV)
-    → rowsToTrades()           # one Trade per raw execution leg
-    → ParseResult { legs[], hasPnl, trades(preview) }
-      → onImport(legs, hasPnl)
-        → importTrades() server action
-          → merge legs into settings['raw_legs'] (deduped by legKey)
-          → recomputePositions(unionOfAllLegs)   # FIFO-match across ALL files
-          → rebuild `trades` table from recomputed set
-          → return recomputed Trade[] → setTrades()
-            → DashboardView, TradesView, TaxView
+User clicks "Sync Now" (ImportView, connected state)
+  → syncSchwab() server action
+    → getValidToken()           # auto-refresh if <5 min to expiry
+    → schwabFetch(/trader/v1/accounts/{acct}/transactions?types=TRADE)
+    → adaptTransactions(json)   # Schwab JSON → Trade[] legs (one per transferItem)
+      → importTrades(legs, hasPnl=false)   # existing pipeline, unchanged
+        → merge legs into settings['raw_legs'] (deduped by legKey)
+        → recomputePositions(unionOfAllLegs)   # FIFO-match across ALL syncs
+        → rebuild `trades` table from recomputed set
+        → return recomputed Trade[] → setTrades()
+          → DashboardView, TradesView, TaxView
 ```
+
+### Schwab API integration (2026-06-27)
+The Schwab layer is a **thin adapter**: it converts Schwab transaction JSON into
+the existing `Trade` leg shape, then feeds the unchanged `importTrades` pipeline.
+All downstream business logic (dedup, FIFO matching, pnlEngine, taxEngine,
+analytics) is untouched. Schwab transactions carry no realized-P&L column, so
+they take the `hasPnl=false` FIFO-matching path (same as TOS Trade History CSV).
+
+**OAuth 2.0 (Authorization Code flow):**
+```
+GET /api/auth/schwab        → redirect to Schwab authorize page (scope=readonly)
+GET /api/auth/callback?code → POST /v1/oauth/token (Basic auth client:secret)
+                            → saveTokens() + cache account number
+                            → redirect /?connected=true
+```
+Access tokens expire in 30 min, refresh tokens in 7 days. `getValidToken()`
+refreshes proactively when <5 min remain.
+
+**Schwab files:**
+```
+lib/schwab/
+├── tokenManager.ts   # token storage/refresh, account #, last_sync_at, isConnected
+├── client.ts         # schwabFetch() — Bearer-auth wrapper over api.schwabapi.com
+├── adapter.ts        # adaptTransactions() — Schwab JSON → Trade[]
+└── quotes.ts         # fetchQuotes() — /marketdata/v1/quotes → { last, change, changePct }
+app/api/auth/schwab/route.ts     # OAuth initiate
+app/api/auth/callback/route.ts   # OAuth callback / token exchange
+actions/syncSchwab.ts            # orchestrates a sync
+actions/fetchQuotes.ts           # live quotes (returns {} if disconnected)
+actions/disconnectSchwab.ts      # clearTokens()
+```
+
+### Live quotes
+Topbar SPX/NDX/VIX are fetched via `getQuotes()` on mount and every 60s while
+connected (interval lives in `TrackerApp`, cleared on unmount). Symbol lookups
+try Schwab index notation (`$SPX.X`) and the bare ticker. Disconnected → tiles
+render `—`.
 
 ### Multi-file import (raw legs are the source of truth)
 A trade can open in one statement file and close in a later one, so import does
@@ -67,10 +104,27 @@ recomputed from the union after each import:
 **Migration note:** legacy `trades` rows are not back-filled into `raw_legs` —
 re-import statements once to seed the leg store.
 
-## Storage schema
+## Settings table keys (key-value store, no schema change needed)
+| Key | Value |
+|-----|-------|
+| `raw_legs` | JSON `PersistedLeg[]` — union of all synced/imported execution legs |
+| `schwab_tokens` | JSON `{ access_token, refresh_token, expires_at }` |
+| `schwab_account_number` | Cached Schwab account number |
+| `last_sync_at` | ISO timestamp of last successful sync |
+
+`isConnected` is derived from the presence of `schwab_tokens`. `clearTokens()`
+(Disconnect) removes `schwab_tokens`, `schwab_account_number`, and `last_sync_at`.
+
+## Environment variables
+```
+TURSO_DATABASE_URL, TURSO_AUTH_TOKEN
+SCHWAB_CLIENT_ID, SCHWAB_CLIENT_SECRET
+SCHWAB_REDIRECT_URI=http://localhost:3001/api/auth/callback   # must match Schwab app registration
+```
+
+## Storage schema (legacy Trade shape reference)
 ```js
-// Key: 'tos-trades'   Shared: false (personal data)
-// Value: JSON.stringify(Trade[])
+// Computed positions live in the Turso `trades` table; raw legs in settings['raw_legs'].
 
 Trade {
   id: string           // btoa hash for dedup

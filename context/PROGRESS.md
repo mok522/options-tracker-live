@@ -1,7 +1,55 @@
 # Progress
-_Updated 2026-06-09_
+_Updated 2026-06-27_
 
 ## Current status
+**Phase: Schwab Developer API integration complete — CSV import replaced**
+
+Live Charles Schwab API integration replaces manual CSV import. Trades sync
+directly via OAuth; topbar shows live SPX/NDX/VIX quotes. Earlier phases (design
+reconciliation, P&L engine, Turso migration) remain as built below.
+
+## Schwab API Integration (2026-06-27)
+
+Design spec: `docs/superpowers/specs/2026-06-27-schwab-api-integration-design.md`
+
+### What was built
+**Thin adapter approach** — Schwab transaction JSON is converted to the existing
+`Trade` leg shape and fed through the unchanged `importTrades` pipeline. No
+business logic (dedup, FIFO, pnlEngine, taxEngine, analytics) was modified.
+
+| File | Role |
+|------|------|
+| `lib/schwab/tokenManager.ts` | Token storage/refresh, account #, last_sync_at, `isConnected()` |
+| `lib/schwab/client.ts` | `schwabFetch()` Bearer-auth wrapper |
+| `lib/schwab/adapter.ts` | `adaptTransactions()` — Schwab JSON → `Trade[]` |
+| `lib/schwab/quotes.ts` | `fetchQuotes()` — live quote normalizer |
+| `app/api/auth/schwab/route.ts` | OAuth initiate (redirect to Schwab) |
+| `app/api/auth/callback/route.ts` | OAuth callback / token exchange + account cache |
+| `actions/syncSchwab.ts` | Orchestrates a sync through `importTrades` |
+| `actions/fetchQuotes.ts` | Live quotes server action |
+| `actions/disconnectSchwab.ts` | `clearTokens()` |
+
+**Modified:** `components/import/ImportView.tsx` (CSV dropzone → connection hub
+with Connect / Sync Now / Disconnect), `components/layout/Topbar.tsx` (live
+quotes + connection dot, removed hardcoded tickers), `components/TrackerApp.tsx`
+(sync/disconnect handlers, 60s quote polling), `app/page.tsx` (passes
+`isConnected` + `lastSyncAt` from settings), `.env.local` (Schwab env vars),
+`.claude/launch.json` (`autoPort: false` — port 3001 fixed for OAuth callback).
+
+### Verification status
+- `next build` passes clean (TypeScript compiles, all routes generate).
+- End-to-end OAuth + sync **not yet exercised** — requires real `SCHWAB_CLIENT_ID`
+  / `SCHWAB_CLIENT_SECRET` in `.env.local` (placeholders committed empty).
+- Schwab transaction/quote JSON field mappings in `adapter.ts` were written
+  against documented shapes; verify exact field names/signs against real API
+  responses on first live sync (especially commission sign and `$SPX.X` quote keys).
+
+### Activation steps
+1. Add real `SCHWAB_CLIENT_ID` / `SCHWAB_CLIENT_SECRET` to `.env.local`.
+2. `npm run dev` (port 3001) → Import tab → "Connect to Charles Schwab".
+3. Authorize → redirected back → "Connected" → "Sync Now".
+
+## Current status (prior)
 **Phase: Design reconciliation complete — full UI rebuild done**
 
 The Claude Code implementation has been fully regenerated from the Claude Design files. All UI components, layouts, charts, and the application shell now faithfully implement the design spec.
@@ -131,12 +179,14 @@ python3 -m pytest tests/test_options_pnl.py -v
 - [ ] Unrealized P&L for open positions (requires manual price entry or market data)
 - [ ] User-selectable marginal tax bracket (currently hardcoded at 24%)
 - [ ] Max drawdown metric
-- [ ] Live ticker quotes in Topbar (currently static sample data)
+- [x] Live ticker quotes in Topbar — live via Schwab `/marketdata/v1/quotes` (2026-06-27)
 
 ## Known gaps / issues
-- Open position P&L shows as flat number (no market data feed)
+- Schwab OAuth + sync not yet exercised end-to-end (needs real credentials)
+- `adapter.ts` field mappings unverified against live API responses (commission sign, `$SPX.X` keys)
+- Open position unrealized P&L not yet wired to live quotes (quotes feed exists; per-position display TODO)
+- Background/auto sync not implemented — manual "Sync Now" only (token refresh is proactive but per-request)
 - `daysHeld` field not tracked in flat Trade type — no holding-period-based LT gains
 - Tax estimates are illustrative only — no CPA review
 - Wash sale detection is approximate (loss trades, not verifying re-purchase timing)
-- Strategy detection relies on CSV data having a Strategy/Spread column populated
-- Topbar ticker quotes are hardcoded (SPX 5431.20, NDX 19284.6, VIX 13.84)
+- Schwab token/secret stored in Turso `settings` (plaintext) — acceptable for single-user; revisit if multi-user

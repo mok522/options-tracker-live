@@ -2,6 +2,7 @@
 
 import { Logo } from '@/components/shared/Logo';
 import { Icon } from '@/components/shared/Icon';
+import type { QuotesMap } from '@/lib/schwab/quotes';
 
 type Tab = 'Dashboard' | 'Analytics' | 'Trades' | 'Tax Exposure' | 'Import';
 
@@ -10,23 +11,40 @@ interface TopbarProps {
   setDark: (fn: (d: boolean) => boolean) => void;
   tab: Tab;
   setTab: (t: Tab) => void;
+  isConnected: boolean;
+  quotes: QuotesMap;
 }
 
 const TABS: Tab[] = ['Dashboard', 'Analytics', 'Trades', 'Tax Exposure', 'Import'];
 
-function Quote({ sym, px, chg }: { sym: string; px: string; chg: number }) {
+function fmt(n: number, decimals = 2): string {
+  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function Quote({ sym, data }: { sym: string; data?: { last: number; changePct: number } }) {
+  if (!data) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-2)' }}>{sym}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-3)' }}>—</span>
+      </div>
+    );
+  }
+  const chgPct = data.changePct;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
       <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-2)' }}>{sym}</span>
-      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-1)', fontVariantNumeric: 'tabular-nums' }}>{px}</span>
-      <span style={{ fontSize: 11.5, fontWeight: 600, color: chg >= 0 ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
-        {chg >= 0 ? '+' : '−'}{Math.abs(chg)}%
+      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-1)', fontVariantNumeric: 'tabular-nums' }}>
+        {fmt(data.last)}
+      </span>
+      <span style={{ fontSize: 11.5, fontWeight: 600, color: chgPct >= 0 ? 'var(--pos)' : 'var(--neg)', fontVariantNumeric: 'tabular-nums' }}>
+        {chgPct >= 0 ? '+' : '−'}{fmt(Math.abs(chgPct))}%
       </span>
     </div>
   );
 }
 
-export function Topbar({ dark, setDark, tab, setTab }: TopbarProps) {
+export function Topbar({ dark, setDark, tab, setTab, isConnected, quotes }: TopbarProps) {
   return (
     <header style={{ height: 50, flex: '0 0 auto', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: 18, padding: '0 18px' }}>
       <Logo compact />
@@ -42,13 +60,14 @@ export function Topbar({ dark, setDark, tab, setTab }: TopbarProps) {
       </div>
       <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
-        <Quote sym="SPX" px="5,431.20" chg={0.4} />
-        <Quote sym="NDX" px="19,284.6" chg={0.6} />
-        <Quote sym="VIX" px="13.84" chg={-2.1} />
+        <Quote sym="SPX" data={quotes['$SPX.X'] ?? quotes['SPX']} />
+        <Quote sym="NDX" data={quotes['$NDX.X'] ?? quotes['NDX']} />
+        <Quote sym="VIX" data={quotes['$VIX.X'] ?? quotes['VIX']} />
       </div>
       <div style={{ flex: 1 }} />
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: 'var(--text-3)' }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--pos-soft)' }} /> Synced 2:14 PM
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: isConnected ? 'var(--pos)' : 'var(--border-2)' }} />
+        {isConnected ? 'Schwab connected' : 'Not connected'}
       </div>
       <button
         onClick={() => setDark((d) => !d)}
@@ -60,10 +79,7 @@ export function Topbar({ dark, setDark, tab, setTab }: TopbarProps) {
           : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         }
       </button>
-      <button onClick={() => setTab('Import')} style={{ font: 'inherit', cursor: 'pointer', border: 0, display: 'flex', alignItems: 'center', gap: 7, height: 32, padding: '0 13px', borderRadius: 8, background: 'var(--text-1)', color: 'var(--surface)', fontSize: 12.5, fontWeight: 600 }}>
-        <Icon name="upload" size={14} /> Import CSV
-      </button>
-      <div style={{ width: 31, height: 31, borderRadius: 8, background: 'var(--accent-wash)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 700 }}>JM</div>
+      <div style={{ width: 31, height: 31, borderRadius: 8, background: 'var(--accent-wash)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 700 }}>MK</div>
     </header>
   );
 }

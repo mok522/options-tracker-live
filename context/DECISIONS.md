@@ -1,10 +1,49 @@
 # Decisions
 _Created 2026-06-08_
 
-## Data source: CSV import only (no manual entry)
-**Decision**: All trade data enters through ThinkOrSwim account statement CSV export. No manual trade entry UI.
-**Rationale**: Eliminates data entry errors, ensures data matches broker records exactly, keeps the UI simple. ThinkOrSwim exports are comprehensive and well-structured.
-**Tradeoff**: User must remember to export and re-import to see new trades. No real-time data.
+## Data source: Charles Schwab Developer API (supersedes CSV-only, 2026-06-27)
+**Decision**: Trade data syncs directly from the Schwab Trader API via OAuth 2.0.
+The CSV import UI was fully removed. A manual "Sync Now" button pulls the
+`/transactions` endpoint; trades flow through the existing import pipeline.
+**Rationale**: Removes the export/re-import friction of the CSV flow. Enables live
+market data (quotes) the CSV never could. The thin-adapter approach (Schwab JSON →
+existing `Trade` shape) preserves all verified business logic.
+**Tradeoff**: Requires Schwab Developer credentials and OAuth setup. Adds a live
+dependency on Schwab API availability and the 30-min/7-day token lifecycle. Earlier
+CSV-only rationale (below) is retained for historical context but no longer applies.
+
+### Superseded: CSV import only (no manual entry)
+_Original 2026-06-08 — replaced by Schwab API above._
+All trade data entered through ThinkOrSwim account statement CSV export, no manual
+entry. Chosen to eliminate data-entry errors and match broker records, at the cost
+of manual re-import and no real-time data.
+
+## Schwab integration: thin adapter, not parallel data model
+**Decision**: Convert Schwab transaction JSON into the existing `Trade` leg shape
+in `lib/schwab/adapter.ts`, then feed the unchanged `importTrades` pipeline.
+Schwab legs take the `hasPnl=false` FIFO-matching path (no realized-P&L column).
+**Rationale**: Keeps every piece of verified logic (dedup, FIFO, pnlEngine,
+taxEngine, analytics) untouched — lowest-risk path. New code is isolated to
+`lib/schwab/` and a few route handlers/actions.
+**Tradeoff**: Adapter must carefully map Schwab's format (commission signs, OCC
+symbols, position effects) to the TOS-derived `Trade` shape; mappings need
+verification against live API responses.
+
+## Schwab tokens stored in Turso `settings` table
+**Decision**: Persist `schwab_tokens` (access + refresh + expiry) as JSON in the
+existing key-value `settings` table. `getValidToken()` refreshes proactively when
+<5 min remain.
+**Rationale**: No schema change needed; single-user app; server actions already
+read/write `settings`. Proactive refresh avoids mid-request 401s.
+**Tradeoff**: Tokens stored in plaintext. Acceptable for a single-user personal
+app; would need encryption / per-user isolation before any multi-user deployment.
+
+## OAuth callback on fixed port 3001
+**Decision**: `.claude/launch.json` sets `autoPort: false`; the dev server must
+run on 3001 to match the registered `SCHWAB_REDIRECT_URI`.
+**Rationale**: Schwab validates the redirect URI exactly against the app
+registration; a dynamic port would break the callback.
+**Tradeoff**: Port 3001 must be free; preview tooling cannot reassign it.
 
 ## Storage: browser key-value persistence (no server)
 **Decision**: Use `window.storage` (artifact storage API) with key `tos-trades`. Personal data, not shared.
