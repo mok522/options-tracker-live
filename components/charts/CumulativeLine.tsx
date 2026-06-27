@@ -72,7 +72,7 @@ export function CumulativeLine({ width = 480, height = 220, data = sampleCumulat
         </g>
       ))}
       {months.map((m, i) => (
-        <text key={m} x={padL + (iw * i) / (months.length - 1)} y={height - 5} textAnchor="middle"
+        <text key={`${m}-${i}`} x={padL + (iw * i) / (months.length - 1)} y={height - 5} textAnchor="middle"
           style={{ fill: 'var(--text-3)', fontSize: 9.5 }}>{m}</text>
       ))}
       <path d={area} style={{ fill: `url(#${gid})` }} />

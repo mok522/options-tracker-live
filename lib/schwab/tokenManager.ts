@@ -1,9 +1,11 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db/client';
 import { settings } from '@/db/schema';
+import { fetchWithTimeout } from './http';
 
 const TOKENS_KEY = 'schwab_tokens';
 const ACCOUNT_KEY = 'schwab_account_number';
+const ACCOUNT_HASH_KEY = 'schwab_account_hash';
 
 interface SchwabTokens {
   access_token: string;
@@ -54,6 +56,7 @@ export async function clearTokens(): Promise<void> {
   await Promise.all([
     deleteSetting(TOKENS_KEY),
     deleteSetting(ACCOUNT_KEY),
+    deleteSetting(ACCOUNT_HASH_KEY),
     deleteSetting('last_sync_at'),
   ]);
 }
@@ -76,7 +79,7 @@ export async function getValidToken(): Promise<string> {
   const clientSecret = process.env.SCHWAB_CLIENT_SECRET!;
   const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-  const res = await fetch('https://api.schwabapi.com/v1/oauth/token', {
+  const res = await fetchWithTimeout('https://api.schwabapi.com/v1/oauth/token', {
     method: 'POST',
     headers: {
       'Authorization': `Basic ${basic}`,
@@ -104,6 +107,15 @@ export async function getCachedAccountNumber(): Promise<string | null> {
 
 export async function saveAccountNumber(accountNumber: string): Promise<void> {
   await setSetting(ACCOUNT_KEY, accountNumber);
+}
+
+/** The encrypted account hash Schwab requires in /accounts/{hash}/... paths. */
+export async function getCachedAccountHash(): Promise<string | null> {
+  return getSetting(ACCOUNT_HASH_KEY);
+}
+
+export async function saveAccountHash(hash: string): Promise<void> {
+  await setSetting(ACCOUNT_HASH_KEY, hash);
 }
 
 export async function getLastSyncAt(): Promise<string | null> {

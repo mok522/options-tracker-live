@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { syncSchwab } from '@/actions/syncSchwab';
+import { testSchwabConnection } from '@/actions/testConnection';
 import { disconnectSchwab } from '@/actions/disconnectSchwab';
 import { Icon } from '@/components/shared/Icon';
 import type { Trade } from '@/types/trade';
@@ -30,6 +31,7 @@ function relativeTime(iso: string | null): string {
 export function ImportView({ isConnected, lastSyncAt, onSync, onDisconnect, onClear, hasData }: ImportViewProps) {
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [testing, setTesting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -45,6 +47,14 @@ export function ImportView({ isConnected, lastSyncAt, onSync, onDisconnect, onCl
       setSyncMsg({ type: 'ok', text: `Synced ${result.newCount} transaction${result.newCount === 1 ? '' : 's'}` });
       onSync(result.trades);
     }
+  };
+
+  const handleTest = async () => {
+    setTesting(true);
+    setSyncMsg(null);
+    const result = await testSchwabConnection();
+    setTesting(false);
+    setSyncMsg({ type: result.ok ? 'ok' : 'err', text: result.message });
   };
 
   const handleDisconnect = async () => {
@@ -128,6 +138,30 @@ export function ImportView({ isConnected, lastSyncAt, onSync, onDisconnect, onCl
               ) : (
                 <>
                   <Icon name="upload" size={15} /> Sync Now
+                </>
+              )}
+            </button>
+
+            {/* Test connection button */}
+            <button
+              onClick={handleTest}
+              disabled={testing || syncing}
+              style={{
+                font: 'inherit', cursor: testing || syncing ? 'default' : 'pointer',
+                display: 'flex', alignItems: 'center', gap: 8,
+                height: 38, padding: '0 24px', borderRadius: 10,
+                border: '1px solid var(--border-2)', background: 'transparent', color: 'var(--text-1)',
+                fontSize: 13, fontWeight: 600, opacity: testing ? 0.7 : 1,
+                width: '100%', justifyContent: 'center',
+              }}
+            >
+              {testing ? (
+                <>
+                  <SpinnerIcon /> Testing…
+                </>
+              ) : (
+                <>
+                  <Icon name="shield" size={14} /> Test connection
                 </>
               )}
             </button>

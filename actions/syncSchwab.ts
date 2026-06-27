@@ -1,11 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import {
-  getCachedAccountNumber,
-  getLastSyncAt,
-  saveLastSyncAt,
-} from '@/lib/schwab/tokenManager';
+import { getLastSyncAt, saveLastSyncAt } from '@/lib/schwab/tokenManager';
+import { resolveAccount } from '@/lib/schwab/accounts';
 import { schwabFetch } from '@/lib/schwab/client';
 import { adaptTransactions } from '@/lib/schwab/adapter';
 import { importTrades } from '@/actions/upsertTrades';
@@ -19,17 +16,8 @@ export interface SyncResult {
 
 export async function syncSchwab(): Promise<SyncResult> {
   try {
-    // Resolve account number
-    let accountNumber = await getCachedAccountNumber();
-    if (!accountNumber) {
-      const res = await schwabFetch('/trader/v1/accounts?fields=positions');
-      if (!res.ok) throw new Error(`Failed to fetch accounts: ${res.status}`);
-      const accounts = await res.json();
-      accountNumber = String(
-        accounts[0]?.securitiesAccount?.accountNumber ?? accounts[0]?.accountNumber ?? ''
-      );
-      if (!accountNumber) throw new Error('No account number found');
-    }
+    // Resolve the encrypted account hash (required by the transactions endpoint)
+    const { hashValue } = await resolveAccount();
 
     // Date range: since last sync, or 365 days if first sync
     const lastSync = await getLastSyncAt();
@@ -45,7 +33,7 @@ export async function syncSchwab(): Promise<SyncResult> {
     });
 
     const txRes = await schwabFetch(
-      `/trader/v1/accounts/${accountNumber}/transactions?${params}`
+      `/trader/v1/accounts/${hashValue}/transactions?${params}`
     );
     if (!txRes.ok) {
       const text = await txRes.text();

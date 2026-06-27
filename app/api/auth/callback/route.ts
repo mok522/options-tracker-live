@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { saveTokens, saveAccountNumber } from '@/lib/schwab/tokenManager';
+import { saveTokens } from '@/lib/schwab/tokenManager';
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
@@ -41,17 +41,12 @@ export async function GET(request: NextRequest) {
   const tokens = await tokenRes.json();
   await saveTokens(tokens.access_token, tokens.refresh_token, tokens.expires_in);
 
-  // Fetch and cache account number
+  // Resolve and cache the account number + encrypted hash for later API calls
   try {
-    const { schwabFetch } = await import('@/lib/schwab/client');
-    const acctRes = await schwabFetch('/trader/v1/accounts?fields=positions');
-    if (acctRes.ok) {
-      const accounts = await acctRes.json();
-      const accountNumber = accounts[0]?.securitiesAccount?.accountNumber ?? accounts[0]?.accountNumber ?? '';
-      if (accountNumber) await saveAccountNumber(String(accountNumber));
-    }
+    const { resolveAccount } = await import('@/lib/schwab/accounts');
+    await resolveAccount();
   } catch (e) {
-    console.error('Failed to fetch account number:', e);
+    console.error('Failed to resolve account:', e);
   }
 
   return NextResponse.redirect(new URL('/?connected=true', request.url));
