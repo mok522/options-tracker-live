@@ -121,7 +121,7 @@ export function OpenPositionsView({ trades }: OpenPositionsViewProps) {
           <div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>When to Close</div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
-              P&L since open, time decay, premium at risk & live moneyness per open leg · marks live during market hours
+              P&L since open, time decay, premium at risk & live moneyness per open leg · marks reflect Schwab&apos;s last mark (updates during market hours)
             </div>
           </div>
           {o.pnlQuotedCount < o.count && (

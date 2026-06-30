@@ -39,6 +39,22 @@ of manual re-import and no real-time data.
 **Rationale**: Live Schwab responses use `assetType` to identify the instrument category. `type` on the instrument is a different field (e.g. `"VANILLA"`). The original adapter used `type !== 'OPTION'`, which caused every option leg to be skipped (0 transactions synced).
 **Tradeoff**: None — this is the correct field per live API verification.
 
+## Open-position marks: parse strike/expiry from the OCC `symbol`, not discrete fields (2026-06-29)
+**Decision**: `fetchOpenOptionMarks` (`lib/schwab/positions.ts`) derives each held
+option's strike, expiration, and call/put from the OCC `instrument.symbol`
+(e.g. `"AAP   270319C00060000"`), falling back to `strikePrice`/`expirationDate`
+only when present.
+**Rationale**: Verified against the live account — the `/accounts/{hash}?fields=positions`
+endpoint returns `strikePrice` and `expirationDate` as `undefined`; they exist only
+encoded in the OCC symbol. The original code required those discrete fields, so it
+skipped every option (0 marks) and "P&L Since Open" showed `—` for all legs. After
+parsing the symbol, all 14 open legs matched and computed P&L cross-checked within
+~$1 of Schwab's own `openProfitLoss`.
+**Tradeoff**: Relies on the fixed 21-char OCC format (6-char root + YYMMDD + C/P +
+8-digit strike×1000). A non-standard symbol fails the regex and degrades to "no mark"
+rather than throwing. Note: marks come from `marketValue`, which Schwab holds at the
+last mark — so P&L populates outside market hours too (it just stops updating).
+
 ## Schwab adapter: commissions as separate CURRENCY transferItems
 **Decision**: Sum all non-OPTION transferItems' `cost` field as the order's total fees, then allocate proportionally to each option leg by contract count.
 **Rationale**: Schwab doesn't embed commissions in the option leg price. Fees arrive as separate `CURRENCY` transferItems with `feeType` values (COMMISSION, SEC_FEE, OPT_REG_FEE, TAF_FEE) and a negative `cost`. This matches the `Trade.comm` convention (leg-total, not per-contract).
