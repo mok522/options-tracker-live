@@ -126,6 +126,24 @@ mark-to-market **P&L Since Open**. Marks are live only during market hours (else
 last close); unmatched legs or missing fields render `—`. The positions response
 shape is handled defensively — a field mismatch degrades to "no mark", never throws.
 
+### App-level login (password gate)
+The whole app sits behind a single shared-password gate (the app has no per-user
+accounts). `middleware.ts` (root) runs on every request except `/login`,
+`/api/app-auth/login`, and Next static assets; it verifies a signed `ott_session`
+cookie and redirects browsers to `/login` (or returns 401 to `/api/*`) when absent.
+- `lib/appAuth.ts` — `signSession`/`verifySession` (HMAC-SHA256 of an expiry via
+  Web Crypto, so it runs in both edge middleware and Node routes), `constantTimeEqual`,
+  `isAuthDisabled`, and `APP_AUTH` (cookie name + 30-day TTL). Stateless: the cookie
+  is `base64url(expiryMs).base64url(HMAC(expiryMs, AUTH_SECRET))`; no session store.
+- `app/api/app-auth/login/route.ts` — timing-safe compare vs `APP_PASSWORD`, sets the
+  cookie (HttpOnly/Secure/SameSite=Lax, 30d). `app/api/app-auth/logout/route.ts` clears it.
+- `app/login/page.tsx` — minimal password form (server component, no client JS).
+- Topbar has a **Log out** link → `/api/app-auth/logout`.
+- The `app-auth` namespace is deliberately separate from the Schwab `/api/auth/*` routes,
+  which remain gated (must be logged in to connect Schwab).
+- **Fail-closed**: if `APP_PASSWORD`/`AUTH_SECRET` are unset, login can't succeed → access
+  denied. `DISABLE_APP_AUTH=true` bypasses the gate for local dev only.
+
 ### Local HTTPS proxy (dev only)
 `next dev --experimental-https` is broken on this machine (accepts TLS but never
 responds). Workaround: Next.js runs plain HTTP on port 3000; `scripts/https-proxy.mjs`
@@ -174,6 +192,9 @@ subsequent calls.
 TURSO_DATABASE_URL, TURSO_AUTH_TOKEN
 SCHWAB_CLIENT_ID, SCHWAB_CLIENT_SECRET
 SCHWAB_REDIRECT_URI=http://localhost:3001/api/auth/callback   # must match Schwab app registration
+APP_PASSWORD          # app-level login password
+AUTH_SECRET           # HMAC signing key for the session cookie (e.g. openssl rand -base64 32)
+DISABLE_APP_AUTH=true # optional, local dev only — bypasses the login gate
 ```
 
 ## Storage schema (legacy Trade shape reference)
