@@ -79,6 +79,13 @@ export function Topbar({ dark, setDark, tab, setTab, isConnected, quotes }: Topb
           : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         }
       </button>
+      <a
+        href="/api/app-auth/logout"
+        title="Log out"
+        style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--text-2)', textDecoration: 'none', padding: '6px 9px', borderRadius: 7, border: '1px solid var(--border)' }}
+      >
+        Log out
+      </a>
       <div style={{ width: 31, height: 31, borderRadius: 8, background: 'var(--accent-wash)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 700 }}>MK</div>
     </header>
   );
