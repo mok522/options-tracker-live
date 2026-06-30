@@ -164,6 +164,13 @@ function buildPositions(ordered: Trade[]): Trade[] {
   const openQueues = new Map<string, Trade[]>();
   const results: Trade[] = [];
 
+  // Monotonic per-run sequence so every emitted row gets a unique id even when
+  // two lots share identical fills. The trades-table insert is onConflictDoNothing,
+  // so colliding ids would silently drop a lot (qty loss). Input order is
+  // deterministic (callers sort), so these ids stay stable across re-syncs.
+  let seq = 0;
+  const uid = (...parts: Array<string | number>) => btoa(parts.join('|') + `|#${seq++}`).replace(/=/g, '');
+
   for (const leg of ordered) {
     const key = `${leg.sym}|${leg.exp}|${leg.strike}|${leg.optType ?? ''}`;
 
@@ -189,8 +196,9 @@ function buildPositions(ordered: Trade[]): Trade[] {
           pl,
           status: 'Closed',
           date: leg.date || open.date || '',
-          // Unique ID per round trip: combines both fill prices
-          id: btoa(`${open.exp}|${open.sym}|${open.fill}|${leg.fill}|${contracts}`).replace(/=/g, ''),
+          // Unique ID per round trip: both fill prices + a per-run sequence so
+          // same-fill lots closed together don't collide.
+          id: uid(open.exp, open.sym, open.fill, leg.fill, contracts),
         });
         // If this open had more contracts than the close consumed, push the
         // remainder back to the front for the next close to match.
@@ -203,7 +211,7 @@ function buildPositions(ordered: Trade[]): Trade[] {
       if (remaining > 0) {
         // Close qty exceeded all available opens — the remainder was opened
         // before the statement period (orphaned close, no cost basis).
-        results.push({ ...leg, qty: remaining, pl: 0, id: buildId({ ...leg, qty: remaining }) });
+        results.push({ ...leg, qty: remaining, pl: 0, id: uid(leg.exp, leg.sym, leg.fill, remaining, 'orphan') });
       }
     }
   }
@@ -230,7 +238,7 @@ function buildPositions(ordered: Trade[]): Trade[] {
         pl,
         status: expired ? 'Expired' : 'Open',
         date,
-        id: buildId(leg),
+        id: uid(leg.exp, leg.sym, leg.fill, leg.qty, expired ? 'Expired' : 'Open'),
       });
     }
   }

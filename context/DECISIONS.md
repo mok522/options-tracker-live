@@ -152,10 +152,11 @@ dangling as a phantom position (confirmed live on RKT: opens @3.81 + @3.85, one 
 close @4.70). The loop is symmetric to the pre-existing "one open → many closes"
 remainder push-back. Each opening lot keeps its own cost basis, so distinct lots
 remain distinct round trips (FIFO tax-lot correct).
-**Tradeoff**: A close spanning N opens yields N rows rather than one merged row. The
-round-trip ID still hashes `open.fill|close.fill|qty`, so two opening lots at the
-*identical* fill price closed together could collide on insert (`onConflictDoNothing`)
-— rarer, flagged as a follow-up.
+**Tradeoff**: A close spanning N opens yields N rows rather than one merged row.
+Round-trip / open / orphan ids in `buildPositions` carry a deterministic per-run
+sequence (`uid(...)`), so two lots at the *identical* fill price no longer collide on
+the `onConflictDoNothing` insert (previously a colliding id silently dropped a lot).
+Ids stay stable across re-syncs because the matcher's input order is deterministic.
 
 ## Tax calculations: estimates only, two fixed brackets
 **Decision**: Show estimated tax at 22% and 32% brackets. No user-configurable rate. Disclaim as estimates.
