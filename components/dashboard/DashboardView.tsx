@@ -145,7 +145,7 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
       <div className="bento-grid" style={{ flex: 1, display: 'grid', gridTemplateColumns: '188px minmax(0,1fr) 276px', gap: 11, minHeight: 0 }}>
 
         {/* left stat rail */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0 }}>
+        <div className="bento-rail" style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0 }}>
           <Tile label="Net Realized P&L" value={fmtSigned(netPL)} tone={netPL >= 0 ? 'pos' : 'neg'} spark={cumulSpark} />
           <Tile label="Win Rate" value={winRate + '%'} delta={winRateDelta} />
           <Tile label="Profit Factor" value={profitFactor > 0 ? profitFactor.toFixed(2) : '—'} />
