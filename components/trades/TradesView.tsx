@@ -45,7 +45,7 @@ export function TradesView({ trades }: TradesViewProps) {
   const [status, setStatus] = useState('All');
   const [strat, setStrat] = useState('All');
   const [q, setQ] = useState('');
-  const [sort, setSort] = useState<{ key: SortKey; dir: number }>({ key: 'pl', dir: -1 });
+  const [sort, setSort] = useState<{ key: SortKey; dir: number }>({ key: 'date', dir: -1 });
 
   const strategies = useMemo(() => ['All', ...Array.from(new Set(trades.map((t) => t.strat)))], [trades]);
 
