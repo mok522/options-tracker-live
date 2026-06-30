@@ -140,6 +140,23 @@ _Superseded (2026-06-08 original): `window.storage` / `localStorage` with key `t
 **Rationale**: Makes import idempotent — users can safely re-import overlapping date ranges without double-counting.
 **Tradeoff**: Two different fills at the exact same time/symbol/price/qty (very rare) would be treated as one. Acceptable edge case.
 
+## FIFO matching: a closing leg fans in across multiple opens (2026-06-30)
+**Decision**: In `buildPositions` (`lib/csvParser.ts`), a closing leg consumes opens
+from the FIFO queue in a loop until its full quantity is matched — emitting one
+round trip per opening lot — instead of matching only the first open.
+**Rationale**: A position can be opened in several small executions (e.g. two 1-lot
+buys at different prices) and closed by one larger order. The old code matched the
+close against only the first open and consumed `min(open, close)`, so a 2-lot close
+over two 1-lot opens produced a single qty-1 closed trade and left the second open
+dangling as a phantom position (confirmed live on RKT: opens @3.81 + @3.85, one 2-lot
+close @4.70). The loop is symmetric to the pre-existing "one open → many closes"
+remainder push-back. Each opening lot keeps its own cost basis, so distinct lots
+remain distinct round trips (FIFO tax-lot correct).
+**Tradeoff**: A close spanning N opens yields N rows rather than one merged row. The
+round-trip ID still hashes `open.fill|close.fill|qty`, so two opening lots at the
+*identical* fill price closed together could collide on insert (`onConflictDoNothing`)
+— rarer, flagged as a follow-up.
+
 ## Tax calculations: estimates only, two fixed brackets
 **Decision**: Show estimated tax at 22% and 32% brackets. No user-configurable rate. Disclaim as estimates.
 **Rationale**: Providing a false sense of precision in tax calculations is worse than clearly communicating they are rough estimates. Most retail traders fall in these brackets.

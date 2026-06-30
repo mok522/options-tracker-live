@@ -172,11 +172,15 @@ function buildPositions(ordered: Trade[]): Trade[] {
       q.push(leg);
       openQueues.set(key, q);
     } else {
-      // Closing leg — match FIFO with the earliest open for this option
+      // Closing leg — match FIFO against the earliest opens for this option.
+      // A single close can cover MULTIPLE smaller opens (e.g. two 1-lot opens
+      // closed by one 2-lot order), so consume opens until the close qty is
+      // exhausted, emitting one round trip per opening lot (distinct cost basis).
       const q = openQueues.get(key) ?? [];
-      if (q.length > 0) {
+      let remaining = leg.qty;
+      while (remaining > 0 && q.length > 0) {
         const open = q.shift()!;
-        const contracts = Math.min(open.qty, leg.qty);
+        const contracts = Math.min(open.qty, remaining);
         const isBuyOpen = open.side === 'Buy';
         const pl = Math.round((isBuyOpen ? leg.fill - open.fill : open.fill - leg.fill) * contracts * 100 * 100) / 100;
         results.push({
@@ -188,14 +192,18 @@ function buildPositions(ordered: Trade[]): Trade[] {
           // Unique ID per round trip: combines both fill prices
           id: btoa(`${open.exp}|${open.sym}|${open.fill}|${leg.fill}|${contracts}`).replace(/=/g, ''),
         });
-        // If open had more contracts than the close, push the remainder back
+        // If this open had more contracts than the close consumed, push the
+        // remainder back to the front for the next close to match.
         if (open.qty > contracts) {
           q.unshift({ ...open, qty: open.qty - contracts });
-          openQueues.set(key, q);
         }
-      } else {
-        // Orphaned close — position opened before the statement period
-        results.push({ ...leg, pl: 0, id: buildId(leg) });
+        remaining -= contracts;
+      }
+      openQueues.set(key, q);
+      if (remaining > 0) {
+        // Close qty exceeded all available opens — the remainder was opened
+        // before the statement period (orphaned close, no cost basis).
+        results.push({ ...leg, qty: remaining, pl: 0, id: buildId({ ...leg, qty: remaining }) });
       }
     }
   }
