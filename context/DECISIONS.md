@@ -1,6 +1,17 @@
 # Decisions
 _Created 2026-06-08_
 
+## App-level login: single password gate (2026-06-29)
+**Decision**: Gate the whole app behind one shared password, enforced by a signed
+httpOnly session cookie verified in `middleware.ts`. No per-user accounts, no auth
+provider. Spec: `docs/superpowers/specs/2026-06-29-app-password-gate-design.md`.
+**Rationale**: It's a single-user personal app (one Turso DB, one Schwab account).
+A password gate is proportionate, adds zero dependencies, and keeps the session
+stateless (HMAC of an expiry — no session table, no DB read in middleware).
+**Tradeoff**: One shared secret rather than real identity; no rate-limiting/lockout
+(acceptable for one user — flagged as a future add). Rejected: Auth.js/OAuth provider
+(overkill for one user) and stored username+password (password-gate with extra steps).
+
 ## Data source: Charles Schwab Developer API (supersedes CSV-only, 2026-06-27)
 **Decision**: Trade data syncs directly from the Schwab Trader API via OAuth 2.0.
 The CSV import UI was fully removed. A manual "Sync Now" button pulls the
