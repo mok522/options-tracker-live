@@ -88,7 +88,7 @@ export function TradesView({ trades }: TradesViewProps) {
   return (
     <div style={{ flex: 1, padding: 16, display: 'flex', flexDirection: 'column', gap: 13, overflow: 'hidden' }}>
       {/* summary cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, flex: '0 0 auto' }}>
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, flex: '0 0 auto' }}>
         <StatCard label="Filtered P&L" value={fmtSigned(totalPL)} tone={totalPL >= 0 ? 'pos' : 'neg'} hint={`${rows.length} of ${trades.length} trades`} />
         <StatCard label="Win Rate" value={winRate + '%'} hint={`${wins} winners`} />
         <StatCard label="Open Positions" value={openCt} hint="in current filter" />

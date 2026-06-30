@@ -59,7 +59,7 @@ export function AnalyticsView({ trades }: AnalyticsViewProps) {
       </div>
 
       {/* KPI tiles */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 11, flex: '0 0 auto' }}>
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 11, flex: '0 0 auto' }}>
         <Tile label="Max Drawdown" value={a.maxDrawdown > 0 ? fmtUSD(-a.maxDrawdown) : '—'} tone="neg" />
         <Tile label="Expectancy / Trade" value={fmtSigned(Math.round(a.expectancy))} tone={a.expectancy >= 0 ? 'pos' : 'neg'} />
         <Tile label="Payoff Ratio" value={a.payoffRatio != null ? a.payoffRatio.toFixed(2) + '×' : '—'} />
@@ -69,7 +69,7 @@ export function AnalyticsView({ trades }: AnalyticsViewProps) {
       </div>
 
       {/* Long vs Short + Streaks & Extremes */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 13, flex: '0 0 auto' }}>
+      <div className="split-grid" style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 13, flex: '0 0 auto' }}>
         {/* long vs short */}
         <div className="panel" style={{ borderRadius: 9 }}>
           <div style={PANEL_HEAD}>

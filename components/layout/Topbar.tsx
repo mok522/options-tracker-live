@@ -46,7 +46,7 @@ function Quote({ sym, data }: { sym: string; data?: { last: number; changePct: n
 
 export function Topbar({ dark, setDark, tab, setTab, isConnected, quotes }: TopbarProps) {
   return (
-    <header style={{ height: 50, flex: '0 0 auto', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: 18, padding: '0 18px' }}>
+    <header className="topbar" style={{ height: 50, flex: '0 0 auto', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: 18, padding: '0 18px' }}>
       <Logo compact />
       <div style={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         {TABS.map((t) => (
@@ -58,14 +58,14 @@ export function Topbar({ dark, setDark, tab, setTab, isConnected, quotes }: Topb
           }}>{t}</button>
         ))}
       </div>
-      <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+      <div className="topbar-ticker" style={{ width: 1, height: 18, background: 'var(--border)' }} />
+      <div className="topbar-ticker" style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
         <Quote sym="SPX" data={quotes['$SPX.X'] ?? quotes['SPX']} />
         <Quote sym="NDX" data={quotes['$NDX.X'] ?? quotes['NDX']} />
         <Quote sym="VIX" data={quotes['$VIX.X'] ?? quotes['VIX']} />
       </div>
       <div style={{ flex: 1 }} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: 'var(--text-3)' }}>
+      <div className="topbar-status" style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 11, color: 'var(--text-3)' }}>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: isConnected ? 'var(--pos)' : 'var(--border-2)' }} />
         {isConnected ? 'Schwab connected' : 'Not connected'}
       </div>

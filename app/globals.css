@@ -166,3 +166,39 @@ html.dark .dash {
 /* select reset */
 .dash select { outline: none; }
 .dash input:focus { outline: none; }
+
+/* ============================================================
+   Responsive — phones (esp. landscape) & small tablets.
+   The dense desktop layout is fit-to-viewport; below this width
+   we unlock vertical scroll, stack the bento, wrap KPI tiles, and
+   keep the topbar reachable. Overrides use !important only where
+   the base value is an inline style that would otherwise win.
+   ============================================================ */
+@media (max-width: 1000px) {
+  html, body, #__next { height: auto; min-height: 100%; }
+  body { overflow-x: hidden; overflow-y: auto; -webkit-text-size-adjust: 100%; }
+  .dash { height: auto; min-height: 100%; overflow: visible; }
+
+  /* Each tab's view container (the .dash > div sibling of the topbar):
+     stop filling a fixed viewport and let content flow into page scroll. */
+  .dash > div { flex: none !important; overflow: visible !important; }
+
+  /* Topbar: pin to top and let the tab row scroll horizontally if needed. */
+  .dash > header.topbar {
+    position: sticky; top: 0; z-index: 30;
+    overflow-x: auto; overflow-y: hidden;
+  }
+  /* Reclaim width: drop the index ticker and connection label on small screens. */
+  .topbar-ticker, .topbar-status { display: none !important; }
+
+  /* KPI tile rows: wrap instead of crushing into fixed columns. */
+  .kpi-grid { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)) !important; }
+
+  /* Two-column content splits stack vertically. */
+  .split-grid { grid-template-columns: 1fr !important; }
+
+  /* Dashboard bento → single column; give chart panels room to render. */
+  .bento-grid { grid-template-columns: 1fr !important; flex: none !important; min-height: 0; }
+  .bento-grid > div { min-height: 0 !important; height: auto !important; }
+  .bento-grid .panel { min-height: 230px; }
+}

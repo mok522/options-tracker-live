@@ -142,7 +142,7 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
 
   return (
     <div style={{ flex: 1, padding: 13, display: 'flex', flexDirection: 'column', gap: 11, overflow: 'hidden' }}>
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '188px minmax(0,1fr) 276px', gap: 11, minHeight: 0 }}>
+      <div className="bento-grid" style={{ flex: 1, display: 'grid', gridTemplateColumns: '188px minmax(0,1fr) 276px', gap: 11, minHeight: 0 }}>
 
         {/* left stat rail */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 11, minHeight: 0 }}>

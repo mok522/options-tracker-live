@@ -101,7 +101,7 @@ export function OpenPositionsView({ trades }: OpenPositionsViewProps) {
       </div>
 
       {/* KPI tiles */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 11, flex: '0 0 auto' }}>
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 11, flex: '0 0 auto' }}>
         <Tile
           label="Unrealized P&L"
           value={o.totalUnrealizedPl != null ? fmtSigned(o.totalUnrealizedPl) : '—'}

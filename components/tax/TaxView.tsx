@@ -86,7 +86,7 @@ export function TaxView({ trades }: TaxViewProps) {
       </div>
 
       {/* headline cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, flex: '0 0 auto' }}>
+      <div className="kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, flex: '0 0 auto' }}>
         <StatCard label="Short-Term Gains" value={fmtUSD(shortTerm)} tone="pos" hint="taxed as ordinary income" />
         <StatCard label="Long-Term Gains" value={fmtUSD(longTerm)} tone="pos" hint="held > 1 year" />
         <StatCard label="§1256 (60/40)" value={fmtUSD(s1256PL)} hint="SPX · NDX · RUT" />
@@ -95,7 +95,7 @@ export function TaxView({ trades }: TaxViewProps) {
       </div>
 
       {/* two-column detail */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 13, flex: '0 0 auto' }}>
+      <div className="split-grid" style={{ display: 'grid', gridTemplateColumns: '1.25fr 1fr', gap: 13, flex: '0 0 auto' }}>
         {/* §1256 detection */}
         <div className="panel" style={{ borderRadius: 9 }}>
           <div style={{ padding: '13px 14px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

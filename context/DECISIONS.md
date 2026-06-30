@@ -1,6 +1,25 @@
 # Decisions
 _Created 2026-06-08_
 
+## Responsive: single 1000px breakpoint, class-based overrides (2026-06-29)
+**Decision**: The dense desktop layout stays fit-to-viewport above 1000px. Below it
+(phones — esp. landscape — and small tablets) a single `@media (max-width: 1000px)`
+block in `globals.css` unlocks vertical page scroll (`body`/`.dash` → `height:auto`,
+`overflow:auto`), wraps KPI tile rows (`.kpi-grid` → `auto-fit minmax(132px,1fr)`),
+stacks the 3-column dashboard bento and the two-column splits to one column
+(`.bento-grid`/`.split-grid`), makes the topbar sticky + horizontally scrollable,
+and hides the index ticker + connection label (`.topbar-ticker`/`.topbar-status`) to
+free width for the tab row.
+**Rationale**: The app is ~95% inline styles, which a stylesheet can't override. Rather
+than convert every component or add a JS viewport hook, semantic classes were added to
+just the layout-critical containers; the media query overrides them (with `!important`
+only where it must beat an inline value). Lowest-risk path — desktop rendering is byte
+-for-byte unchanged (verified: full topbar, 7-col KPI, 3-col bento at 1280px).
+**Tradeoff**: Below ~667px (portrait) the tab row needs horizontal scroll to reach the
+last tabs; acceptable since the goal was "usable in landscape." Charts are already
+container-responsive (`width="100%"` + viewBox), so they scale for free; bento chart
+panels get a `min-height:230px` on mobile so a 100%-height SVG has room to render.
+
 ## App-level login: single password gate (2026-06-29)
 **Decision**: Gate the whole app behind one shared password, enforced by a signed
 httpOnly session cookie verified in `middleware.ts`. No per-user accounts, no auth
