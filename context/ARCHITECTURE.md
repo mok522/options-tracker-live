@@ -170,6 +170,22 @@ recomputed from the union after each import:
 **Migration note:** legacy `trades` rows are not back-filled into `raw_legs` —
 re-import statements once to seed the leg store.
 
+### Position P&L history (2026-07-08)
+- **`position_snapshots` (Turso)** — daily point-in-time P&L per open position,
+  written by the snapshot cron. Composite PK (`position_key`, `date`); upsert on
+  re-run; rows kept forever. Columns: `position_key`, `date` (YYYY-MM-DD), `mark`,
+  `unrealized_pl`, `qty`, `captured_at`.
+- **`/api/cron/snapshot` (GET)** — Vercel Cron target (`vercel.json`:
+  `30 21 * * 1-5` UTC). Auth via `CRON_SECRET` Bearer header, fail-closed. Exempt
+  from the app-login middleware. Reuses `fetchOpenOptionMarks` →
+  `buildSnapshots` (`lib/snapshotPositions.ts`) and upserts one row per open
+  position.
+- **`PositionHistoryPanel` (`components/positions/`)** — slide-out opened by
+  clicking a row in Open Positions. Fetches history via
+  `actions/fetchPositionHistory.ts`; renders the `PositionHistoryLine` chart,
+  a percentile-of-range metric (`lib/positionHistory.ts`), and best/worst/days
+  stats. Full-viewport width on ≤1000px screens.
+
 ## Settings table keys (key-value store, no schema change needed)
 | Key | Value |
 |-----|-------|

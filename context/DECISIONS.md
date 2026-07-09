@@ -1,6 +1,12 @@
 # Decisions
 _Created 2026-06-08_
 
+## Position history snapshots (2026-07-08)
+**Decision**: Store both P&L and mark per day; use percentile-of-range as the
+headline metric; keep rows forever; rely on Vercel Cron only (no on-visit
+fallback). Full rationale in
+`docs/superpowers/specs/2026-07-08-position-pl-history-design.md`.
+
 ## Responsive: single 1000px breakpoint, class-based overrides (2026-06-29)
 **Decision**: The dense desktop layout stays fit-to-viewport above 1000px. Below it
 (phones — esp. landscape — and small tablets) a single `@media (max-width: 1000px)`
