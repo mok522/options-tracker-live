@@ -41,12 +41,19 @@ export async function GET(req: NextRequest) {
   }));
 
   const snapshots = buildSnapshots(trades, marks);
-  for (const s of snapshots) {
-    await db.insert(positionSnapshots).values(s).onConflictDoUpdate({
-      target: [positionSnapshots.positionKey, positionSnapshots.date],
-      set: { mark: s.mark, unrealizedPl: s.unrealizedPl, qty: s.qty, capturedAt: s.capturedAt },
-    });
+  let written = 0;
+  try {
+    for (const s of snapshots) {
+      await db.insert(positionSnapshots).values(s).onConflictDoUpdate({
+        target: [positionSnapshots.positionKey, positionSnapshots.date],
+        set: { mark: s.mark, unrealizedPl: s.unrealizedPl, qty: s.qty, capturedAt: s.capturedAt },
+      });
+      written++;
+    }
+  } catch (e) {
+    console.error(`snapshot cron: upsert failed after ${written}/${snapshots.length} rows (next: ${snapshots[written]?.positionKey})`, e);
+    return NextResponse.json({ error: 'Snapshot write failed', written, total: snapshots.length }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, written: snapshots.length, date: snapshots[0]?.date ?? null });
+  return NextResponse.json({ ok: true, written, date: snapshots[0]?.date ?? null });
 }
