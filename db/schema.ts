@@ -1,4 +1,4 @@
-import { sqliteTable, text, real, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, real, integer, primaryKey } from 'drizzle-orm/sqlite-core';
 
 export const rawTrades = sqliteTable('raw_trades', {
   dedupKey:   text('dedup_key').primaryKey(),
@@ -45,3 +45,15 @@ export const trades = sqliteTable('trades', {
   status: text('status').notNull(),
   date:   text('date').notNull().default(''),
 });
+
+// Daily point-in-time P&L per open position. One row per (position, day);
+// the cron job upserts so a re-run overwrites that day's row. Rows are kept
+// forever, including after the position closes (spec: 2026-07-08 design).
+export const positionSnapshots = sqliteTable('position_snapshots', {
+  positionKey:  text('position_key').notNull(),   // lib/openAnalytics.ts positionKey()
+  date:         text('date').notNull(),           // "YYYY-MM-DD" local
+  mark:         real('mark').notNull(),           // per-contract mark
+  unrealizedPl: real('unrealized_pl').notNull(),  // $ across the position's lots
+  qty:          integer('qty').notNull(),         // contracts open at capture
+  capturedAt:   text('captured_at').notNull(),    // ISO timestamp
+}, (t) => [primaryKey({ columns: [t.positionKey, t.date] })]);
