@@ -235,6 +235,12 @@ python3 -m pytest tests/test_options_pnl.py -v
 # 54 passed, 0 failed
 ```
 
+## Position P&L history (2026-07-08)
+- **Position P&L history**: daily cron snapshots per-position
+  unrealized P&L into `position_snapshots`; Open Positions rows open a
+  slide-out with a history chart and percentile-of-range metric.
+  Spec: `docs/superpowers/specs/2026-07-08-position-pl-history-design.md`
+
 ## Backlog (post-reconciliation)
 - [ ] Notes/tags field per trade ("earnings play", "hedge", etc.)
 - [ ] Position sizing column (% of account per trade)

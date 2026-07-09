@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { Trade } from '@/types/trade';
-import { computeOpenAnalytics, type CloseSignal, type OpenRow, type MarksMap } from '@/lib/openAnalytics';
+import { computeOpenAnalytics, parseExp, positionKey, type CloseSignal, type OpenRow, type MarksMap } from '@/lib/openAnalytics';
 import { getQuotes } from '@/actions/fetchQuotes';
 import { getOpenPositionMarks } from '@/actions/fetchPositions';
 import type { QuotesMap } from '@/lib/schwab/quotes';
 import { fmtUSD, fmtSigned, fmtPct, fmtNum } from '@/lib/formatters';
 import { Tile } from '@/components/layout/Tile';
 import { Icon } from '@/components/shared/Icon';
+import { ymd } from '@/lib/snapshotPositions';
+import { PositionHistoryPanel } from './PositionHistoryPanel';
 
 interface OpenPositionsViewProps {
   trades: Trade[];
@@ -57,6 +59,13 @@ export function OpenPositionsView({ trades }: OpenPositionsViewProps) {
   // Live underlying quotes (moneyness) + option marks (unrealized P&L).
   const [quotes, setQuotes] = useState<QuotesMap>({});
   const [marks, setMarks] = useState<MarksMap>({});
+  const [selected, setSelected] = useState<{ row: OpenRow; key: string } | null>(null);
+
+  const openHistory = (r: OpenRow) => {
+    const expDate = parseExp(r.trade.exp);
+    const key = positionKey(r.trade.sym, r.strikeNum, expDate ? ymd(expDate) : null, r.kind, r.isShort);
+    if (key) setSelected({ row: r, key });
+  };
 
   const symbolKey = useMemo(() => {
     const set = new Set<string>();
@@ -121,7 +130,7 @@ export function OpenPositionsView({ trades }: OpenPositionsViewProps) {
           <div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>When to Close</div>
             <div style={{ fontSize: 11.5, color: 'var(--text-3)', marginTop: 2 }}>
-              P&L since open, time decay, premium at risk & live moneyness per open leg · marks reflect Schwab&apos;s last mark (updates during market hours)
+              P&L since open, time decay, premium at risk & live moneyness per open leg · click a row for P&L history · marks reflect Schwab&apos;s last mark (updates during market hours)
             </div>
           </div>
           {o.pnlQuotedCount < o.count && (
@@ -151,7 +160,9 @@ export function OpenPositionsView({ trades }: OpenPositionsViewProps) {
             </thead>
             <tbody>
               {o.rows.map((r, i) => (
-                <tr key={i} style={{ borderTop: '1px solid var(--border)' }} className="trow">
+                <tr key={i} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }} className="trow"
+                  onClick={() => openHistory(r)} title="View P&L history"
+                  tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHistory(r); } }}>
                   <td style={{ ...cell, fontWeight: 700 }}>{r.trade.sym}</td>
                   <td style={{ ...cell, color: 'var(--text-2)' }}>{r.trade.strat}</td>
                   <td style={{ ...numCell, color: 'var(--text-2)' }}>{r.trade.qty}</td>
@@ -180,6 +191,10 @@ export function OpenPositionsView({ trades }: OpenPositionsViewProps) {
           </table>
         </div>
       </div>
+
+      {selected && (
+        <PositionHistoryPanel row={selected.row} positionKey={selected.key} onClose={() => setSelected(null)} />
+      )}
     </div>
   );
 }
