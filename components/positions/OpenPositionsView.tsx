@@ -161,7 +161,8 @@ export function OpenPositionsView({ trades }: OpenPositionsViewProps) {
             <tbody>
               {o.rows.map((r, i) => (
                 <tr key={i} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }} className="trow"
-                  onClick={() => openHistory(r)} title="View P&L history">
+                  onClick={() => openHistory(r)} title="View P&L history"
+                  tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openHistory(r); } }}>
                   <td style={{ ...cell, fontWeight: 700 }}>{r.trade.sym}</td>
                   <td style={{ ...cell, color: 'var(--text-2)' }}>{r.trade.strat}</td>
                   <td style={{ ...numCell, color: 'var(--text-2)' }}>{r.trade.qty}</td>

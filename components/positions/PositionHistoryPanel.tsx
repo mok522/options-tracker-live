@@ -30,6 +30,7 @@ export function PositionHistoryPanel({ row, positionKey, onClose }: PositionHist
 
   useEffect(() => {
     let live = true;
+    setPoints(null);
     getPositionHistory(positionKey).then((p) => { if (live) setPoints(p); });
     return () => { live = false; };
   }, [positionKey]);
