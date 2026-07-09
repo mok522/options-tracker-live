@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { verifySession, isAuthDisabled, APP_AUTH } from '@/lib/appAuth';
 
 // Reachable without a session. Everything else requires a valid cookie.
-const PUBLIC_PATHS = ['/login', '/api/app-auth/login'];
+// /api/cron/snapshot is public here but enforces CRON_SECRET itself.
+const PUBLIC_PATHS = ['/login', '/api/app-auth/login', '/api/cron/snapshot'];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
