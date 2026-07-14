@@ -189,7 +189,9 @@ function buildPositions(ordered: Trade[]): Trade[] {
         const open = q.shift()!;
         const contracts = Math.min(open.qty, remaining);
         const isBuyOpen = open.side === 'Buy';
-        const pl = Math.round((isBuyOpen ? leg.fill - open.fill : open.fill - leg.fill) * contracts * 100 * 100) / 100;
+        // Shares settle 1:1; option contracts carry the ×100 multiplier.
+        const mult = (open.assetType ?? 'OPTION') === 'EQUITY' ? 1 : 100;
+        const pl = Math.round((isBuyOpen ? leg.fill - open.fill : open.fill - leg.fill) * contracts * mult * 100) / 100;
         results.push({
           ...open,
           qty: contracts,
@@ -198,6 +200,7 @@ function buildPositions(ordered: Trade[]): Trade[] {
           // "assigned away" from an ordinary buy-to-close.
           status: leg.status === 'Assigned' ? 'Assigned' : 'Closed',
           date: leg.date || open.date || '',
+          openDate: open.date || '',
           // Unique ID per round trip: both fill prices + a per-run sequence so
           // same-fill lots closed together don't collide.
           id: uid(open.exp, open.sym, open.fill, leg.fill, contracts),
@@ -240,6 +243,7 @@ function buildPositions(ordered: Trade[]): Trade[] {
         pl,
         status: expired ? 'Expired' : 'Open',
         date,
+        openDate: leg.date || '',
         id: uid(leg.exp, leg.sym, leg.fill, leg.qty, expired ? 'Expired' : 'Open'),
       });
     }
