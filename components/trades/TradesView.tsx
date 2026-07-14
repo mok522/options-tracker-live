@@ -22,7 +22,10 @@ function StatCard({ label, value, tone, hint }: { label: string; value: string |
   );
 }
 
-const commOf = (t: Trade) => (t.comm != null ? t.comm : -(Math.round((t.qty * 0.66) * 100) / 100));
+// $0.66/contract estimate applies to options only — stock trades are
+// commission-free, so a missing comm on an equity leg means $0.
+const commOf = (t: Trade) =>
+  t.comm != null ? t.comm : (t.assetType ?? 'OPTION') === 'EQUITY' ? 0 : -(Math.round((t.qty * 0.66) * 100) / 100);
 
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 // Close/realization date for a finished trade; em-dash while still open.
