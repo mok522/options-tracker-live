@@ -44,6 +44,8 @@ export const trades = sqliteTable('trades', {
   pl:     real('pl').notNull(),
   status: text('status').notNull(),
   date:   text('date').notNull().default(''),
+  assetType: text('asset_type').notNull().default('OPTION'), // 'OPTION' | 'EQUITY'
+  openDate:  text('open_date').notNull().default(''),        // "YYYY-MM-DD" of the FIFO-matched opening leg
 });
 
 // Daily point-in-time P&L per open position. One row per (position, day);

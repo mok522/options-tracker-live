@@ -26,6 +26,8 @@ export default async function Home() {
     pl:     r.pl,
     status: r.status as Trade['status'],
     date:   r.date ?? '',
+    assetType: (r.assetType as Trade['assetType']) ?? 'OPTION',
+    openDate:  r.openDate ?? '',
   }));
 
   return (

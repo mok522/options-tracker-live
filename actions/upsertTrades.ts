@@ -61,6 +61,8 @@ export async function importTrades(legs: Trade[], hasPnl: boolean): Promise<Trad
         qty: t.qty, strike: t.strike, exp: t.exp, fill: t.fill,
         comm: t.comm ?? null, pl: t.pl, status: t.status,
         date: t.date ?? '',
+        assetType: t.assetType ?? 'OPTION',
+        openDate: t.openDate ?? '',
       })
       .onConflictDoNothing();
   }
