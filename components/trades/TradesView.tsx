@@ -43,6 +43,7 @@ type SortKey = 'sym' | 'strat' | 'side' | 'qty' | 'exp' | 'fill' | 'pl' | 'date'
 
 export function TradesView({ trades }: TradesViewProps) {
   const [status, setStatus] = useState('All');
+  const [kind, setKind] = useState('All');
   const [strat, setStrat] = useState('All');
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<{ key: SortKey; dir: number }>({ key: 'date', dir: -1 });
@@ -52,6 +53,7 @@ export function TradesView({ trades }: TradesViewProps) {
   const rows = useMemo(() => {
     let r = trades.filter((t) =>
       (status === 'All' || t.status === status) &&
+      (kind === 'All' || ((t.assetType ?? 'OPTION') === 'EQUITY') === (kind === 'Stocks')) &&
       (strat === 'All' || t.strat === strat) &&
       (q.trim() === '' || t.sym.toLowerCase().includes(q.trim().toLowerCase())));
     const k = sort.key;
@@ -63,7 +65,7 @@ export function TradesView({ trades }: TradesViewProps) {
       return ((av as number) - (bv as number)) * sort.dir;
     });
     return r;
-  }, [trades, status, strat, q, sort]);
+  }, [trades, status, kind, strat, q, sort]);
 
   const totalPL = rows.reduce((s, t) => s + t.pl, 0);
   const wins = rows.filter((t) => t.pl >= 0).length;
@@ -100,6 +102,11 @@ export function TradesView({ trades }: TradesViewProps) {
         <div className="seg">
           {['All', 'Open', 'Closed', 'Expired', 'Assigned'].map((o) => (
             <button key={o} className={status === o ? 'on' : ''} onClick={() => setStatus(o)}>{o}</button>
+          ))}
+        </div>
+        <div className="seg">
+          {['All', 'Options', 'Stocks'].map((o) => (
+            <button key={o} className={kind === o ? 'on' : ''} onClick={() => setKind(o)}>{o}</button>
           ))}
         </div>
         <div style={{ position: 'relative' }}>
@@ -160,8 +167,8 @@ export function TradesView({ trades }: TradesViewProps) {
                   <td style={{ ...td, color: 'var(--text-2)' }}>{t.strat}</td>
                   <td style={td}><span style={{ fontSize: 11.5, fontWeight: 600, color: t.side === 'Buy' ? 'var(--accent)' : 'var(--text-2)' }}>{t.side}</span></td>
                   <td style={{ ...numTd, color: 'var(--text-2)' }}>{t.qty}</td>
-                  <td style={{ ...td, color: 'var(--text-2)' }}>{t.strike}</td>
-                  <td style={{ ...td, color: 'var(--text-2)' }}>{t.exp}</td>
+                  <td style={{ ...td, color: 'var(--text-2)' }}>{t.strike || '—'}</td>
+                  <td style={{ ...td, color: 'var(--text-2)' }}>{t.exp || '—'}</td>
                   <td style={{ ...numTd, color: 'var(--text-2)' }}>{fmtNum(t.fill)}</td>
                   <td style={{ ...numTd, color: 'var(--text-3)' }}>{fmtNum(commOf(t))}</td>
                   <td style={{ ...numTd, fontWeight: 700, color: t.pl >= 0 ? 'var(--pos)' : 'var(--neg)' }}>{fmtSigned(t.pl)}</td>

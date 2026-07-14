@@ -42,8 +42,8 @@ export function TradesTable({ rows = sampleTrades, dense = false, cols }: Trades
             {has('Strategy') && <td style={{ ...cell, color: 'var(--text-2)' }}>{t.strat}</td>}
             {has('Side')     && <td style={cell}><span style={{ fontSize: 11, fontWeight: 600, color: t.side === 'Buy' ? 'var(--accent)' : 'var(--text-2)' }}>{t.side}</span></td>}
             {has('Qty')      && <td style={{ ...cell, ...numAlign, color: 'var(--text-2)' }}>{t.qty}</td>}
-            {has('Strike')   && <td style={{ ...cell, color: 'var(--text-2)', fontVariantNumeric: 'tabular-nums' }}>{t.strike}</td>}
-            {has('Exp')      && <td style={{ ...cell, color: 'var(--text-2)' }}>{t.exp}</td>}
+            {has('Strike')   && <td style={{ ...cell, color: 'var(--text-2)', fontVariantNumeric: 'tabular-nums' }}>{t.strike || '—'}</td>}
+            {has('Exp')      && <td style={{ ...cell, color: 'var(--text-2)' }}>{t.exp || '—'}</td>}
             {has('Fill')     && <td style={{ ...cell, ...numAlign, color: 'var(--text-2)' }}>{fmtNum(t.fill)}</td>}
             {has('P&L')      && <td style={{ ...cell, ...numAlign, fontWeight: 700, color: t.pl >= 0 ? 'var(--pos)' : 'var(--neg)' }}>{fmtSigned(t.pl)}</td>}
             {has('Status')   && <td style={{ ...cell, textAlign: 'right' }}><StatusPill status={t.status} /></td>}
