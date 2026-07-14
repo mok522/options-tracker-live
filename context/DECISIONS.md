@@ -1,6 +1,12 @@
 # Decisions
 _Created 2026-06-08_
 
+## Stock P&L tracking (2026-07-13)
+Track ALL equity trades (not just assignment-linked); roll into headline
+aggregates with a Trades Type filter; holding-period tax split; Open
+Positions tab stays options-only (user preference). Full rationale in
+docs/superpowers/specs/2026-07-13-stock-pl-tracking-design.md.
+
 ## Position history snapshots (2026-07-08)
 **Decision**: Store both P&L and mark per day; use percentile-of-range as the
 headline metric; keep rows forever; rely on Vercel Cron only (no on-visit
@@ -81,9 +87,9 @@ rather than throwing. Note: marks come from `marketValue`, which Schwab holds at
 last mark — so P&L populates outside market hours too (it just stops updating).
 
 ## Schwab adapter: commissions as separate CURRENCY transferItems
-**Decision**: Sum all non-OPTION transferItems' `cost` field as the order's total fees, then allocate proportionally to each option leg by contract count.
-**Rationale**: Schwab doesn't embed commissions in the option leg price. Fees arrive as separate `CURRENCY` transferItems with `feeType` values (COMMISSION, SEC_FEE, OPT_REG_FEE, TAF_FEE) and a negative `cost`. This matches the `Trade.comm` convention (leg-total, not per-contract).
-**Tradeoff**: Allocation is proportional (not per-contract-type weighted), which is accurate for single-leg orders and approximate for multi-leg orders with mixed contract counts.
+**Decision**: Sum all `CURRENCY` transferItems' `cost` field as the order's total fees, then allocate proportionally to each leg (option contracts and, since 2026-07-13, equity shares) by unit count.
+**Rationale**: Schwab doesn't embed commissions in the option leg price. Fees arrive as separate `CURRENCY` transferItems with `feeType` values (COMMISSION, SEC_FEE, OPT_REG_FEE, TAF_FEE) and a negative `cost`. This matches the `Trade.comm` convention (leg-total, not per-contract). The filter was narrowed from "non-OPTION" to "CURRENCY only" when equity legs were added, since equity transferItems carry trade proceeds in `cost` (not fees) and would otherwise be double-counted into the fee pool.
+**Tradeoff**: Allocation is proportional (not per-contract-type weighted), which is accurate for single-leg orders and approximate for multi-leg/mixed option+share orders.
 
 ## Schwab integration: thin adapter, not parallel data model
 **Decision**: Convert Schwab transaction JSON into the existing `Trade` leg shape
