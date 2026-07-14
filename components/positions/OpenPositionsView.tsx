@@ -67,11 +67,18 @@ export function OpenPositionsView({ trades }: OpenPositionsViewProps) {
     if (key) setSelected({ row: r, key });
   };
 
+  // This tab is options-only by design (spec 2026-07-13): share lots live in
+  // the Trades table. Filter before any analytics touch the data.
+  const optionTrades = useMemo(
+    () => trades.filter((t) => (t.assetType ?? 'OPTION') === 'OPTION'),
+    [trades],
+  );
+
   const symbolKey = useMemo(() => {
     const set = new Set<string>();
-    for (const t of trades) if (t.status === 'Open') { set.add(t.sym); set.add(`$${t.sym}.X`); }
+    for (const t of optionTrades) if (t.status === 'Open') { set.add(t.sym); set.add(`$${t.sym}.X`); }
     return [...set].sort().join(',');
-  }, [trades]);
+  }, [optionTrades]);
 
   useEffect(() => {
     if (!symbolKey) return;
@@ -81,7 +88,7 @@ export function OpenPositionsView({ trades }: OpenPositionsViewProps) {
     return () => { live = false; };
   }, [symbolKey]);
 
-  const o = useMemo(() => computeOpenAnalytics(trades, quotes, marks), [trades, quotes, marks]);
+  const o = useMemo(() => computeOpenAnalytics(optionTrades, quotes, marks), [optionTrades, quotes, marks]);
 
   if (o.count === 0) {
     return (

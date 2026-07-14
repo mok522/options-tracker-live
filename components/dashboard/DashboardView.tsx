@@ -35,7 +35,9 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
   const grossLoss    = Math.abs(losses.reduce((s, t) => s + t.pl, 0));
   const profitFactor = grossLoss > 0 ? Math.round((grossWin / grossLoss) * 100) / 100 : 0;
   const avgTrade     = closed.length ? Math.round(netPL / closed.length) : 0;
-  const openCt       = useMemo(() => trades.filter((t) => t.status === 'Open').length, [trades]);
+  // Matches the Open Positions tab, which is options-only; open share lots
+  // are visible in the Trades table instead.
+  const openCt       = useMemo(() => trades.filter((t) => t.status === 'Open' && (t.assetType ?? 'OPTION') === 'OPTION').length, [trades]);
   const totalComm    = useMemo(() => Math.round(trades.reduce((s, t) => s + commOf(t), 0) * 100) / 100, [trades]);
 
   // Tax sidebar calcs (mirror TaxView logic)
