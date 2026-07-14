@@ -79,15 +79,25 @@ export function adaptTransactions(transactions: SchwabTransaction[]): Trade[] {
         i.instrument.expirationDate &&
         i.instrument.underlyingSymbol
     );
-    if (optionItems.length === 0) continue;
+    // Share legs — ordinary stock trades AND assignment share sales (Schwab
+    // books those as plain equity TRADEs). Only from TRADE transactions:
+    // RECEIVE_AND_DELIVER equity items are transfers, not trades.
+    const equityItems = tx.type === 'TRADE'
+      ? items.filter((i) => i.instrument?.assetType === 'EQUITY' && i.instrument.symbol)
+      : [];
+    if (optionItems.length === 0 && equityItems.length === 0) continue;
 
     // Fees/commission are separate CURRENCY line items (COMMISSION, SEC_FEE,
     // OPT_REG_FEE, TAF_FEE) carrying a negative `cost`. Total them for the
     // whole order, then allocate to each leg by its share of contracts.
     const totalFees = items
-      .filter((i) => i.instrument?.assetType !== 'OPTION')
+      .filter((i) => i.instrument?.assetType === 'CURRENCY')
       .reduce((s, i) => s + (i.cost ?? 0), 0);
-    const totalContracts = optionItems.reduce((s, i) => s + Math.abs(i.amount), 0);
+    // Fee pool is shared pro-rata across every unit in the order
+    // (option contracts + shares — mixed orders are rare and small).
+    const totalUnits =
+      optionItems.reduce((s, i) => s + Math.abs(i.amount), 0) +
+      equityItems.reduce((s, i) => s + Math.abs(i.amount), 0);
 
     for (const item of optionItems) {
       const inst = item.instrument;
@@ -116,7 +126,7 @@ export function adaptTransactions(transactions: SchwabTransaction[]): Trade[] {
       const exp = fmtExp(inst.expirationDate!);
 
       // Leg-total commission (negative = charge), this leg's share of order fees.
-      const legComm = totalContracts > 0 ? (totalFees * qty) / totalContracts : 0;
+      const legComm = totalUnits > 0 ? (totalFees * qty) / totalUnits : 0;
 
       // Opening side used for strategy naming (closing legs invert)
       const openingSide: 'Buy' | 'Sell' = status === 'Open' ? side : side === 'Buy' ? 'Sell' : 'Buy';
@@ -131,6 +141,33 @@ export function adaptTransactions(transactions: SchwabTransaction[]): Trade[] {
         exp,
         fill,
         optType,
+        assetType: 'OPTION',
+        comm: legComm !== 0 ? Math.round(legComm * 100) / 100 : null,
+        pl: 0,
+        status,
+        date: fmtDate(tx.time),
+      });
+    }
+
+    for (const item of equityItems) {
+      const shares = Math.abs(item.amount);
+      if (shares === 0) continue;
+
+      const side: 'Buy' | 'Sell' = item.amount < 0 ? 'Sell' : 'Buy';
+      const effect = item.positionEffect ?? 'OPENING';
+      const status: Trade['status'] = effect === 'OPENING' ? 'Open' : 'Closed';
+      const legComm = totalUnits > 0 ? (totalFees * shares) / totalUnits : 0;
+
+      legs.push({
+        sym: item.instrument.symbol.toUpperCase(),
+        strat: 'Stock',
+        side,
+        qty: shares,
+        strike: '',
+        exp: '',
+        fill: Math.abs(item.price ?? 0),
+        optType: '',
+        assetType: 'EQUITY',
         comm: legComm !== 0 ? Math.round(legComm * 100) / 100 : null,
         pl: 0,
         status,

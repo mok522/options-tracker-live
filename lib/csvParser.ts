@@ -189,7 +189,9 @@ function buildPositions(ordered: Trade[]): Trade[] {
         const open = q.shift()!;
         const contracts = Math.min(open.qty, remaining);
         const isBuyOpen = open.side === 'Buy';
-        const pl = Math.round((isBuyOpen ? leg.fill - open.fill : open.fill - leg.fill) * contracts * 100 * 100) / 100;
+        // Shares settle 1:1; option contracts carry the ×100 multiplier.
+        const mult = (open.assetType ?? 'OPTION') === 'EQUITY' ? 1 : 100;
+        const pl = Math.round((isBuyOpen ? leg.fill - open.fill : open.fill - leg.fill) * contracts * mult * 100) / 100;
         results.push({
           ...open,
           qty: contracts,
@@ -198,6 +200,7 @@ function buildPositions(ordered: Trade[]): Trade[] {
           // "assigned away" from an ordinary buy-to-close.
           status: leg.status === 'Assigned' ? 'Assigned' : 'Closed',
           date: leg.date || open.date || '',
+          openDate: open.date || '',
           // Unique ID per round trip: both fill prices + a per-run sequence so
           // same-fill lots closed together don't collide.
           id: uid(open.exp, open.sym, open.fill, leg.fill, contracts),
@@ -240,6 +243,7 @@ function buildPositions(ordered: Trade[]): Trade[] {
         pl,
         status: expired ? 'Expired' : 'Open',
         date,
+        openDate: leg.date || '',
         id: uid(leg.exp, leg.sym, leg.fill, leg.qty, expired ? 'Expired' : 'Open'),
       });
     }
@@ -324,7 +328,9 @@ export function deduplicateTrades(incoming: Trade[], existing: Trade[]): { added
 }
 
 export function buildSampleCSV(trades: Trade[]): string {
-  const commOf = (t: Trade) => (t.comm != null ? t.comm : -(Math.round((t.qty * 0.66) * 100) / 100));
+  // 0.66/contract fallback is an options estimate; equity legs default to $0.
+  const commOf = (t: Trade) =>
+    t.comm != null ? t.comm : (t.assetType ?? 'OPTION') === 'EQUITY' ? 0 : -(Math.round((t.qty * 0.66) * 100) / 100);
   const head = 'Symbol,Strategy,Side,Qty,Strike,Exp,Fill Price,Commission,Realized P/L,Status';
   const lines = trades.map((t) =>
     [t.sym, t.strat, t.side, t.qty, t.strike, t.exp, t.fill.toFixed(2), commOf(t).toFixed(2), t.pl, t.status].join(',')

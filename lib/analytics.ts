@@ -40,9 +40,10 @@ export interface AnalyticsResult {
   drawdownSeries: number[];   // underwater curve (values <= 0) over date-sorted closes
 }
 
-// Commission magnitude, mirroring the dashboard's fallback (0.66/contract round-trip).
+// Commission magnitude, mirroring the dashboard's fallback (0.66/contract
+// round-trip — options only; stock trades are commission-free).
 function absComm(t: Trade): number {
-  const c = t.comm != null ? t.comm : -(Math.round(t.qty * 0.66 * 100) / 100);
+  const c = t.comm != null ? t.comm : (t.assetType ?? 'OPTION') === 'EQUITY' ? 0 : -(Math.round(t.qty * 0.66 * 100) / 100);
   return Math.abs(c);
 }
 

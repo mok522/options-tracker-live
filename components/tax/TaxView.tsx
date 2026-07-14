@@ -5,6 +5,7 @@ import type { Trade } from '@/types/trade';
 import { Icon } from '@/components/shared/Icon';
 import { fmtUSD, fmtSigned } from '@/lib/formatters';
 import { S1256_SYMS } from '@/lib/csvParser';
+import { splitGains } from '@/lib/taxBuckets';
 
 interface TaxViewProps {
   trades: Trade[];
@@ -44,11 +45,10 @@ export function TaxView({ trades }: TaxViewProps) {
   const s1256Trades = yearTrades.filter(isS1256);
   const s1256PL = s1256Trades.reduce((s, x) => s + x.pl, 0);
   const nonS1256Closed = closed.filter((t) => !isS1256(t));
-  const shortTerm = nonS1256Closed.reduce((s, t) => s + (t.pl > 0 ? t.pl : 0), 0);
-  const longTerm = 0;
+  const { shortTermGains: shortTerm, longTermGains: longTerm } = splitGains(nonS1256Closed);
   const washCandidates = nonS1256Closed.filter((x) => x.pl < 0).slice(0, 5);
   const washTotal = washCandidates.reduce((s, x) => s + x.pl, 0);
-  const estTax = Math.max(0, shortTerm) * 0.24 + Math.max(0, s1256PL * 0.4) * 0.24 + Math.max(0, s1256PL * 0.6) * 0.15;
+  const estTax = Math.max(0, shortTerm) * 0.24 + longTerm * 0.15 + Math.max(0, s1256PL * 0.4) * 0.24 + Math.max(0, s1256PL * 0.6) * 0.15;
 
   const ltOf = (pl: number) => pl * 0.6;
   const stOf = (pl: number) => pl * 0.4;

@@ -37,7 +37,8 @@ export async function GET(req: NextRequest) {
     id: r.id, sym: r.sym, strat: r.strat, side: r.side as Trade['side'],
     qty: r.qty, strike: r.strike, exp: r.exp, fill: r.fill,
     comm: r.comm ?? null, pl: r.pl, status: r.status as Trade['status'],
-    date: r.date ?? '',
+    date: r.date ?? '', assetType: (r.assetType as Trade['assetType']) ?? 'OPTION',
+    openDate: r.openDate ?? '',
   }));
 
   const snapshots = buildSnapshots(trades, marks);

@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import type { Trade } from '@/types/trade';
 import { fmtSigned, fmtUSD } from '@/lib/formatters';
 import { S1256_SYMS } from '@/lib/csvParser';
+import { splitGains } from '@/lib/taxBuckets';
 import { Tile } from '@/components/layout/Tile';
 import { Panel } from '@/components/layout/Panel';
 import { Icon } from '@/components/shared/Icon';
@@ -20,7 +21,10 @@ interface DashboardViewProps {
 }
 
 const MON_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const commOf = (t: Trade) => (t.comm != null ? t.comm : -(Math.round(t.qty * 0.66 * 100) / 100));
+// $0.66/contract estimate applies to options only — stock trades are
+// commission-free, so a missing comm on an equity leg means $0.
+const commOf = (t: Trade) =>
+  t.comm != null ? t.comm : (t.assetType ?? 'OPTION') === 'EQUITY' ? 0 : -(Math.round(t.qty * 0.66 * 100) / 100);
 const s1256set = new Set(S1256_SYMS);
 
 export function DashboardView({ trades, setTab }: DashboardViewProps) {
@@ -34,13 +38,15 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
   const grossLoss    = Math.abs(losses.reduce((s, t) => s + t.pl, 0));
   const profitFactor = grossLoss > 0 ? Math.round((grossWin / grossLoss) * 100) / 100 : 0;
   const avgTrade     = closed.length ? Math.round(netPL / closed.length) : 0;
-  const openCt       = useMemo(() => trades.filter((t) => t.status === 'Open').length, [trades]);
+  // Matches the Open Positions tab, which is options-only; open share lots
+  // are visible in the Trades table instead.
+  const openCt       = useMemo(() => trades.filter((t) => t.status === 'Open' && (t.assetType ?? 'OPTION') === 'OPTION').length, [trades]);
   const totalComm    = useMemo(() => Math.round(trades.reduce((s, t) => s + commOf(t), 0) * 100) / 100, [trades]);
 
   // Tax sidebar calcs (mirror TaxView logic)
-  const s1256PL     = trades.filter((t) => s1256set.has(t.sym)).reduce((s, t) => s + t.pl, 0);
-  const shortTermPL = closed.filter((t) => !s1256set.has(t.sym)).reduce((s, t) => s + (t.pl > 0 ? t.pl : 0), 0);
-  const estTax      = Math.round((shortTermPL * 0.24 + Math.max(0, s1256PL * 0.4) * 0.24 + Math.max(0, s1256PL * 0.6) * 0.15) * 100) / 100;
+  const s1256PL = trades.filter((t) => s1256set.has(t.sym)).reduce((s, t) => s + t.pl, 0);
+  const { shortTermGains: shortTermPL, longTermGains: longTermPL } = splitGains(closed.filter((t) => !s1256set.has(t.sym)));
+  const estTax = Math.round((shortTermPL * 0.24 + longTermPL * 0.15 + Math.max(0, s1256PL * 0.4) * 0.24 + Math.max(0, s1256PL * 0.6) * 0.15) * 100) / 100;
 
   // Sparkline for Net P&L tile (trade-import order — approximate trend)
   const cumulSpark = useMemo(
@@ -161,7 +167,7 @@ export function DashboardView({ trades, setTab }: DashboardViewProps) {
           >
             {([
               ['Short-term', fmtUSD(shortTermPL)],
-              ['Long-term',  fmtUSD(0)],
+              ['Long-term',  fmtUSD(longTermPL)],
               ['§1256 60/40', fmtUSD(s1256PL)],
             ] as [string, string][]).map(([l, v]) => (
               <div key={l} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11.5 }}>

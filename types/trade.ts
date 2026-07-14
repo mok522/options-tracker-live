@@ -12,4 +12,6 @@ export interface Trade {
   pl: number;
   status: 'Open' | 'Closed' | 'Expired' | 'Assigned';
   date?: string; // ISO "YYYY-MM-DD" — execution date for opens, realization date for closes
+  assetType?: 'OPTION' | 'EQUITY'; // undefined = OPTION (legacy rows, CSV imports)
+  openDate?: string; // "YYYY-MM-DD" of the FIFO-matched opening leg ('' when unknown)
 }

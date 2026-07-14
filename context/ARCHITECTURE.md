@@ -170,6 +170,15 @@ recomputed from the union after each import:
 **Migration note:** legacy `trades` rows are not back-filled into `raw_legs` —
 re-import statements once to seed the leg store.
 
+### Stock P&L tracking (2026-07-13)
+`trades` carries `asset_type` ('OPTION' default | 'EQUITY') and `open_date`
+(FIFO-matched open, powers holding-period tax split). The Schwab adapter
+emits equity legs from TRADE transactions (strat 'Stock', strike/exp empty,
+qty = shares); buildPositions uses a ×1 multiplier for shares (×100 options).
+Open Positions tab + Dashboard tile are options-only; stock rows live in
+Trades (Type filter) and roll into all realized aggregates. lib/taxBuckets.ts
+splits non-§1256 gains short/long-term (>365 days, equity only).
+
 ### Position P&L history (2026-07-08)
 - **`position_snapshots` (Turso)** — daily point-in-time P&L per open position,
   written by the snapshot cron. Composite PK (`position_key`, `date`); upsert on
