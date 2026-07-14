@@ -241,6 +241,14 @@ python3 -m pytest tests/test_options_pnl.py -v
   slide-out with a history chart and percentile-of-range metric.
   Spec: `docs/superpowers/specs/2026-07-08-position-pl-history-design.md`
 
+## Assignment sync fix (2026-07-13)
+- Schwab books assignments as RECEIVE_AND_DELIVER ("Removed due to Assignment
+  ..."), not TRADE — sync now fetches both types; the adapter emits a $0
+  closing leg with status `Assigned`, and FIFO matching keeps that status on
+  the round trip (previously fell back to `Expired`). Premium P&L unchanged.
+  The assignment's separate stock-sale TRADE (equity leg) is still ignored —
+  stock P&L tracking is a planned follow-up feature.
+
 ## Backlog (post-reconciliation)
 - [ ] Notes/tags field per trade ("earnings play", "hedge", etc.)
 - [ ] Position sizing column (% of account per trade)

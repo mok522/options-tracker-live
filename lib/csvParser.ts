@@ -194,7 +194,9 @@ function buildPositions(ordered: Trade[]): Trade[] {
           ...open,
           qty: contracts,
           pl,
-          status: 'Closed',
+          // Assignment closes keep their status so the UI can distinguish
+          // "assigned away" from an ordinary buy-to-close.
+          status: leg.status === 'Assigned' ? 'Assigned' : 'Closed',
           date: leg.date || open.date || '',
           // Unique ID per round trip: both fill prices + a per-run sequence so
           // same-fill lots closed together don't collide.

@@ -25,7 +25,7 @@ const WINDOW_MS = 364 * DAY_MS;
 const MAX_LOOKBACK_YEARS = 6;
 
 /**
- * Pull TRADE transactions across the full available history by paging backwards
+ * Pull TRADE + RECEIVE_AND_DELIVER transactions across the full available history by paging backwards
  * in <1-year windows. Tolerates older windows that Schwab rejects/empties
  * (its retention horizon) by stopping once we hit one with no data, as long as
  * we've already collected some.
@@ -38,7 +38,9 @@ async function fetchAllTradeTransactions(hashValue: string): Promise<SchwabTrans
   while (windowEnd > floor) {
     const windowStart = Math.max(floor, windowEnd - WINDOW_MS);
     const params = new URLSearchParams({
-      types: 'TRADE',
+      // RECEIVE_AND_DELIVER carries option assignments/removals; the adapter
+      // filters to the assignment events it understands.
+      types: 'TRADE,RECEIVE_AND_DELIVER',
       startDate: new Date(windowStart).toISOString(),
       endDate: new Date(windowEnd).toISOString(),
     });

@@ -61,7 +61,12 @@ export function adaptTransactions(transactions: SchwabTransaction[]): Trade[] {
   const legs: Trade[] = [];
 
   for (const tx of transactions) {
-    if (tx.type !== 'TRADE') continue;
+    // Assignments don't arrive as TRADE — Schwab books them as a
+    // RECEIVE_AND_DELIVER ("Removed due to Assignment CALL ... $110 EXP ...")
+    // that removes the option at $0, plus a separate TRADE for the shares.
+    const isAssignment =
+      tx.type === 'RECEIVE_AND_DELIVER' && /assignment/i.test(tx.description ?? '');
+    if (tx.type !== 'TRADE' && !isAssignment) continue;
 
     const items = tx.transferItems ?? [];
 
@@ -92,10 +97,13 @@ export function adaptTransactions(transactions: SchwabTransaction[]): Trade[] {
       // amount < 0 → selling contracts (credit), amount > 0 → buying contracts (debit)
       const side: 'Buy' | 'Sell' = item.amount < 0 ? 'Sell' : 'Buy';
 
-      // positionEffect: OPENING → 'Open', CLOSING → 'Closed', AUTOMATIC* → 'Expired'
+      // positionEffect: OPENING → 'Open', CLOSING → 'Closed', AUTOMATIC* → 'Expired';
+      // assignment removals (option taken away at $0) → 'Assigned'.
       const effect = item.positionEffect ?? 'OPENING';
       let status: Trade['status'];
-      if (effect === 'OPENING') {
+      if (isAssignment) {
+        status = 'Assigned';
+      } else if (effect === 'OPENING') {
         status = 'Open';
       } else if (effect.startsWith('AUTOMATIC')) {
         status = 'Expired';
